@@ -1,0 +1,13 @@
+[project]
+name = "meshtastic_drone"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "meshtastic>=2.6.3",
+    "paho-mqtt>=2.1.0",
+    "protobuf>=6.31.1",
+    "pycryptodome>=3.23.0",
+    "python-dotenv>=1.1.0",
+]
