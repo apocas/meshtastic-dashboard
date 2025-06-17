@@ -2,6 +2,7 @@ import sqlite3
 import json
 from datetime import datetime
 import threading
+import random
 
 class MeshtasticDB:
     def __init__(self, db_path="meshtastic.db"):
@@ -234,3 +235,23 @@ class MeshtasticDB:
                 AND timestamp >= datetime('now', '-{} hours')
                 ORDER BY timestamp DESC
             '''.format(hours), (node_id, node_id, node_id)).fetchall()]
+    
+    def update_connection(self, from_node, to_node, snr=None, rssi=None):
+        """Create a packet that represents a connection between two nodes"""
+        packet_data = {
+            'packet_id': f'{random.randint(0x10000000, 0xffffffff):08x}',
+            'from_node': from_node,
+            'to_node': to_node,
+            'portnum': 1,  # TEXT_MESSAGE_APP
+            'channel': 0,
+            'hop_limit': 3,
+            'want_ack': False,
+            'rx_time': datetime.now(),
+            'rx_snr': snr if snr is not None else random.uniform(-20, 20),
+            'rx_rssi': rssi if rssi is not None else random.randint(-100, -30),
+            'payload_type': 'connection_test',
+            'payload_data': {'type': 'connection_test', 'message': 'Connection test packet'},
+            'gateway_id': None
+        }
+        
+        self.add_packet(packet_data)
