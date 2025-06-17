@@ -175,7 +175,13 @@ class MeshtasticDB:
             return [dict(row) for row in conn.execute('''
                 SELECT 
                     from_node,
-                    to_node,
+                    CASE 
+                        WHEN gateway_id IS NOT NULL 
+                             AND gateway_id != from_node 
+                             AND gateway_id != to_node 
+                        THEN gateway_id 
+                        ELSE to_node 
+                    END as to_node,
                     COUNT(*) as packet_count,
                     AVG(rx_snr) as avg_snr,
                     AVG(rx_rssi) as avg_rssi,
@@ -187,8 +193,15 @@ class MeshtasticDB:
                     AND rx_rssi != 0
                     AND from_node != to_node
                     AND to_node != 'ffffffff'
-                    AND datetime(timestamp) > datetime('now', '-1 hour')
-                GROUP BY from_node, to_node
+                    AND datetime(timestamp) > datetime('now', '-24 hours')
+                GROUP BY from_node, 
+                    CASE 
+                        WHEN gateway_id IS NOT NULL 
+                             AND gateway_id != from_node 
+                             AND gateway_id != to_node 
+                        THEN gateway_id 
+                        ELSE to_node 
+                    END
                 HAVING packet_count >= 1
                 ORDER BY last_seen DESC
             ''').fetchall()]
