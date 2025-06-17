@@ -27,42 +27,150 @@ def decode_port_payload(portnum, payload_bytes):
             text = payload_bytes.decode("utf-8", errors="replace")
             return {"type": "channel_info", "channel_name": text}
         
-        elif portnum == portnums_pb2.PortNum.TEXT_MESSAGE_APP:
-            return {"type": "text", "message": payload_bytes.decode("utf-8", errors="replace")}
+        elif portnum == 1 or portnum == portnums_pb2.PortNum.TEXT_MESSAGE_APP:
+            return {"type": "text_message", "message": payload_bytes.decode("utf-8", errors="replace")}
 
-        elif portnum == portnums_pb2.PortNum.POSITION_APP:
-            from meshtastic import position_pb2
-            pos = position_pb2.Position()
+        elif portnum == 3 or portnum == portnums_pb2.PortNum.POSITION_APP:
+            from meshtastic.protobuf import mesh_pb2
+            pos = mesh_pb2.Position()
             pos.ParseFromString(payload_bytes)
             return {
                 "type": "position",
-                "latitude": pos.latitude_i / 1e7,
-                "longitude": pos.longitude_i / 1e7,
-                "altitude": pos.altitude,
-                "time": pos.time
+                "latitude": pos.latitude_i / 1e7 if pos.latitude_i else None,
+                "longitude": pos.longitude_i / 1e7 if pos.longitude_i else None,
+                "altitude": pos.altitude if pos.altitude != 0 else None,
+                "time": pos.time if pos.time else None,
+                "precision_bits": pos.precision_bits if hasattr(pos, 'precision_bits') else None
             }
 
-        elif portnum == portnums_pb2.PortNum.NODEINFO_APP:
-            from meshtastic import nodeinfo_pb2
-            info = nodeinfo_pb2.NodeInfo()
-            info.ParseFromString(payload_bytes)
+        elif portnum == 4 or portnum == portnums_pb2.PortNum.NODEINFO_APP:
+            from meshtastic.protobuf import mesh_pb2
+            user = mesh_pb2.User()
+            user.ParseFromString(payload_bytes)
             return {
                 "type": "nodeinfo",
-                "long_name": info.user.long_name,
-                "short_name": info.user.short_name,
-                "macaddr": info.user.macaddr
+                "long_name": user.long_name,
+                "short_name": user.short_name,
+                "macaddr": user.macaddr.hex() if user.macaddr else None,
+                "hw_model": user.hw_model,
+                "is_licensed": user.is_licensed,
+                "role": user.role
             }
 
-        elif portnum == portnums_pb2.PortNum.TELEMETRY_APP:
-            from meshtastic import telemetry_pb2
-            tel = telemetry_pb2.Telemetry()
-            tel.ParseFromString(payload_bytes)
+        elif portnum == 8 or portnum == portnums_pb2.PortNum.WAYPOINT_APP:
+            from meshtastic.protobuf import mesh_pb2
+            waypoint = mesh_pb2.Waypoint()
+            waypoint.ParseFromString(payload_bytes)
             return {
-                "type": "telemetry",
-                "battery_level": tel.battery_level,
-                "voltage": tel.voltage,
-                "channel_utilization": tel.channel_utilization
+                "type": "waypoint",
+                "id": waypoint.id,
+                "latitude": waypoint.latitude_i / 1e7 if waypoint.latitude_i else None,
+                "longitude": waypoint.longitude_i / 1e7 if waypoint.longitude_i else None,
+                "expire": waypoint.expire,
+                "locked_to": waypoint.locked_to,
+                "name": waypoint.name,
+                "description": waypoint.description,
+                "icon": waypoint.icon
             }
+
+        elif portnum == 67 or portnum == portnums_pb2.PortNum.TELEMETRY_APP:
+            from meshtastic.protobuf import mesh_pb2
+            tel = mesh_pb2.Telemetry()
+            tel.ParseFromString(payload_bytes)
+            
+            result = {"type": "telemetry"}
+            
+            # Device metrics
+            if tel.HasField("device_metrics"):
+                result["device_metrics"] = {
+                    "battery_level": tel.device_metrics.battery_level if tel.device_metrics.battery_level != 0 else None,
+                    "voltage": tel.device_metrics.voltage if tel.device_metrics.voltage != 0 else None,
+                    "channel_utilization": tel.device_metrics.channel_utilization if tel.device_metrics.channel_utilization != 0 else None,
+                    "air_util_tx": tel.device_metrics.air_util_tx if tel.device_metrics.air_util_tx != 0 else None,
+                    "uptime_seconds": tel.device_metrics.uptime_seconds if tel.device_metrics.uptime_seconds != 0 else None
+                }
+            
+            # Environment metrics
+            if tel.HasField("environment_metrics"):
+                result["environment_metrics"] = {
+                    "temperature": tel.environment_metrics.temperature if tel.environment_metrics.temperature != 0 else None,
+                    "relative_humidity": tel.environment_metrics.relative_humidity if tel.environment_metrics.relative_humidity != 0 else None,
+                    "barometric_pressure": tel.environment_metrics.barometric_pressure if tel.environment_metrics.barometric_pressure != 0 else None,
+                    "gas_resistance": tel.environment_metrics.gas_resistance if tel.environment_metrics.gas_resistance != 0 else None,
+                    "voltage": tel.environment_metrics.voltage if tel.environment_metrics.voltage != 0 else None,
+                    "current": tel.environment_metrics.current if tel.environment_metrics.current != 0 else None,
+                    "iaq": tel.environment_metrics.iaq if tel.environment_metrics.iaq != 0 else None,
+                    "wind_direction": tel.environment_metrics.wind_direction,
+                    "wind_speed": tel.environment_metrics.wind_speed,
+                    "wind_gust": tel.environment_metrics.wind_gust,
+                    "wind_lull": tel.environment_metrics.wind_lull
+                }
+            
+            # Power metrics
+            if tel.HasField("power_metrics"):
+                result["power_metrics"] = {
+                    "ch1_voltage": tel.power_metrics.ch1_voltage if tel.power_metrics.ch1_voltage != 0 else None,
+                    "ch1_current": tel.power_metrics.ch1_current if tel.power_metrics.ch1_current != 0 else None,
+                    "ch2_voltage": tel.power_metrics.ch2_voltage if tel.power_metrics.ch2_voltage != 0 else None,
+                    "ch2_current": tel.power_metrics.ch2_current if tel.power_metrics.ch2_current != 0 else None,
+                    "ch3_voltage": tel.power_metrics.ch3_voltage if tel.power_metrics.ch3_voltage != 0 else None,
+                    "ch3_current": tel.power_metrics.ch3_current if tel.power_metrics.ch3_current != 0 else None
+                }
+            
+            return result
+
+        elif portnum == 70 or portnum == portnums_pb2.PortNum.TRACEROUTE_APP:
+            from meshtastic.protobuf import mesh_pb2
+            route = mesh_pb2.RouteDiscovery()
+            route.ParseFromString(payload_bytes)
+            return {
+                "type": "traceroute",
+                "route": list(route.route),
+                "snr_towards": list(route.snr_towards),
+                "route_back": list(route.route_back),
+                "snr_back": list(route.snr_back)
+            }
+
+        elif portnum == 71 or portnum == portnums_pb2.PortNum.NEIGHBORINFO_APP:
+            from meshtastic.protobuf import mesh_pb2
+            neighbor_info = mesh_pb2.NeighborInfo()
+            neighbor_info.ParseFromString(payload_bytes)
+            return {
+                "type": "neighbor_info",
+                "node_broadcast_interval_secs": neighbor_info.node_broadcast_interval_secs,
+                "neighbors": [
+                    {
+                        "node_id": neighbor.node_id,
+                        "snr": neighbor.snr
+                    }
+                    for neighbor in neighbor_info.neighbors
+                ]
+            }
+
+        elif portnum == 73 or portnum == portnums_pb2.PortNum.MAP_REPORT_APP:
+            from meshtastic.protobuf import mesh_pb2
+            map_report = mesh_pb2.MapReport()
+            map_report.ParseFromString(payload_bytes)
+            return {
+                "type": "map_report",
+                "long_name": map_report.long_name,
+                "short_name": map_report.short_name,
+                "role": map_report.role,
+                "hw_model": map_report.hw_model,
+                "firmware_version": map_report.firmware_version,
+                "region": map_report.region,
+                "modem_preset": map_report.modem_preset,
+                "has_default_channel": map_report.has_default_channel,
+                "latitude": map_report.latitude_i / 1e7 if map_report.latitude_i else None,
+                "longitude": map_report.longitude_i / 1e7 if map_report.longitude_i else None,
+                "altitude": map_report.altitude if map_report.altitude != 0 else None,
+                "position_precision": map_report.position_precision,
+                "num_online_local_nodes": map_report.num_online_local_nodes
+            }
+
+        # Ignored portnums (as per JavaScript implementation)
+        elif portnum in [5, 34, 65, 66, 72, 257] or portnum > 511:
+            return {"type": "ignored", "portnum": portnum, "reason": "filtered_out"}
 
         else:
             return {"type": f"unknown:{portnum}", "raw": payload_bytes.hex(" ")}
