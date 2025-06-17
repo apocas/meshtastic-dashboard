@@ -7,9 +7,15 @@ import struct
 import base64
 from base64 import b64decode
 from Crypto.Cipher import AES
+import threading
+from datetime import datetime
 
 from google.protobuf.message import DecodeError
 from meshtastic import mesh_pb2, portnums_pb2, telemetry_pb2, mqtt_pb2
+
+# Import our database and Flask app
+from database import MeshtasticDB
+from app import app
 
 # === Configuration ===
 load_dotenv()
@@ -20,6 +26,9 @@ MQTT_USERNAME = os.getenv("MQTT_USERNAME")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 MQTT_KEEPALIVE = int(os.getenv("MQTT_KEEPALIVE", 60))
 MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "meshtastic_decoder")
+
+# Initialize database
+db = MeshtasticDB()
 
 # === Decoder for known port payloads ===
 def decode_port_payload(portnum, payload_bytes):
@@ -244,8 +253,29 @@ def on_message(client, userdata, msg):
             return
             
         packet = envelope.packet
-        print(f"[📦] MeshPacket from: {getattr(packet, 'from'):08x}, to: {packet.to:08x}, id: {packet.id:08x}")
+        from_node = f"{getattr(packet, 'from'):08x}"
+        to_node = f"{packet.to:08x}"
+        packet_id = f"{packet.id:08x}"
+        
+        print(f"[📦] MeshPacket from: {from_node}, to: {to_node}, id: {packet_id}")
         print(f"[📦] Channel: {packet.channel}, hop_limit: {packet.hop_limit}")
+        
+        # Prepare packet data for database
+        packet_data = {
+            'packet_id': packet_id,
+            'from_node': from_node,
+            'to_node': to_node,
+            'portnum': None,
+            'channel': packet.channel,
+            'hop_limit': packet.hop_limit,
+            'want_ack': getattr(packet, 'want_ack', False),
+            'rx_time': getattr(packet, 'rx_time', datetime.now()),
+            'rx_snr': getattr(packet, 'rx_snr', None),
+            'rx_rssi': getattr(packet, 'rx_rssi', None),
+            'gateway_id': envelope.gateway_id,
+            'payload_type': 'unknown',
+            'payload_data': {}
+        }
         
         # Check if packet has encrypted data
         if hasattr(packet, 'encrypted') and packet.encrypted:
@@ -254,7 +284,7 @@ def on_message(client, userdata, msg):
             # Try to decrypt with default key
             decrypted_bytes = decrypt_payload(packet.encrypted, packet.id, getattr(packet, 'from'))
             if decrypted_bytes:
-                print(f"[�] Successfully decrypted {len(decrypted_bytes)} bytes")
+                print(f"[🔓] Successfully decrypted {len(decrypted_bytes)} bytes")
                 
                 # Parse decrypted data as Data protobuf
                 try:
@@ -270,7 +300,7 @@ def on_message(client, userdata, msg):
         elif hasattr(packet, 'decoded') and packet.decoded:
             # Unencrypted data
             data_msg = packet.decoded
-            print("[�] Found unencrypted decoded data")
+            print("[🔓] Found unencrypted decoded data")
         else:
             print("[❌] No encrypted or decoded data found in packet")
             return
@@ -293,6 +323,8 @@ def on_message(client, userdata, msg):
             payload = data_msg.payload
             print(f"[ℹ️] PortNum: {portnum} (0x{portnum:x})")
             
+            packet_data['portnum'] = portnum
+            
             # Show some statistics
             portnum_names = {
                 0: "UNKNOWN_APP",
@@ -312,11 +344,34 @@ def on_message(client, userdata, msg):
                 decoded = decode_port_payload(portnum, payload)
                 print("[✅] Decoded payload:")
                 print(json.dumps(decoded, indent=2))
+                
+                # Update packet data with decoded payload
+                packet_data['payload_type'] = decoded.get('type', 'unknown')
+                packet_data['payload_data'] = decoded
+                
+                # Process specific payload types
+                process_decoded_payload(decoded, from_node, to_node, packet_data)
+                
             else:
                 print("[❌] No payload in data message")
         else:
             print("[ℹ️] Missing portnum or payload fields")
-            print(f"[�] Available fields: {[field.name for field, _ in data_msg.ListFields()]}")
+            print(f"[📄] Available fields: {[field.name for field, _ in data_msg.ListFields()]}")
+
+        # Store packet in database
+        db.add_packet(packet_data)
+        
+        # Update connection tracking
+        if from_node != to_node and to_node != "ffffffff":  # Exclude broadcasts to self
+            db.update_connection(from_node, to_node, packet_data.get('rx_snr'), packet_data.get('rx_rssi'))
+        
+        # Emit real-time updates if Flask app is available
+        try:
+            with app.app_context():
+                if hasattr(app, 'emit_packet_update'):
+                    app.emit_packet_update(packet_data)
+        except Exception as e:
+            print(f"[⚠] Failed to emit packet update: {e}")
 
     except DecodeError as e:
         print(f"[⚠] Failed to parse Data: {e}")
@@ -325,6 +380,121 @@ def on_message(client, userdata, msg):
         print(f"[‼] Unexpected error: {e}")
         import traceback
         traceback.print_exc()
+
+def process_decoded_payload(decoded, from_node, to_node, packet_data):
+    """Process decoded payload and update database accordingly"""
+    try:
+        payload_type = decoded.get('type')
+        
+        if payload_type == 'position':
+            # Update node position
+            node_data = {
+                'node_id': from_node,
+                'latitude': decoded.get('latitude'),
+                'longitude': decoded.get('longitude'),
+                'altitude': decoded.get('altitude')
+            }
+            db.update_node(node_data)
+            
+            # Emit node update
+            try:
+                with app.app_context():
+                    if hasattr(app, 'emit_node_update'):
+                        app.emit_node_update(node_data)
+            except Exception as e:
+                print(f"[⚠] Failed to emit node update: {e}")
+        
+        elif payload_type == 'nodeinfo':
+            # Update node info
+            node_data = {
+                'node_id': from_node,
+                'long_name': decoded.get('long_name'),
+                'short_name': decoded.get('short_name'),
+                'hardware_model': decoded.get('hw_model'),
+                'role': decoded.get('role'),
+                'is_licensed': decoded.get('is_licensed')
+            }
+            db.update_node(node_data)
+            
+            # Emit node update
+            try:
+                with app.app_context():
+                    if hasattr(app, 'emit_node_update'):
+                        app.emit_node_update(node_data)
+            except Exception as e:
+                print(f"[⚠] Failed to emit node update: {e}")
+        
+        elif payload_type == 'telemetry':
+            # Update node telemetry
+            node_data = {'node_id': from_node}
+            
+            # Extract telemetry data
+            if 'device_metrics' in decoded:
+                device = decoded['device_metrics']
+                if device.get('battery_level'):
+                    node_data['battery_level'] = device['battery_level']
+                if device.get('voltage'):
+                    node_data['voltage'] = device['voltage']
+            
+            if any(key in node_data for key in ['battery_level', 'voltage']):
+                db.update_node(node_data)
+                
+                # Emit node update
+                try:
+                    with app.app_context():
+                        if hasattr(app, 'emit_node_update'):
+                            app.emit_node_update(node_data)
+                except Exception as e:
+                    print(f"[⚠] Failed to emit node update: {e}")
+        
+        elif payload_type == 'neighbor_info':
+            # Process neighbor information to create connections
+            neighbors = decoded.get('neighbors', [])
+            for neighbor in neighbors:
+                neighbor_id = f"{neighbor.get('node_id'):08x}"
+                snr = neighbor.get('snr')
+                db.update_connection(from_node, neighbor_id, snr=snr)
+                
+                # Emit connection update
+                try:
+                    with app.app_context():
+                        if hasattr(app, 'emit_connection_update'):
+                            connection_data = {
+                                'from_node': from_node,
+                                'to_node': neighbor_id,
+                                'last_seen': datetime.now().isoformat(),
+                                'packet_count': 1,
+                                'avg_snr': snr
+                            }
+                            app.emit_connection_update(connection_data)
+                except Exception as e:
+                    print(f"[⚠] Failed to emit connection update: {e}")
+        
+        elif payload_type == 'map_report':
+            # Update comprehensive node info from map report
+            node_data = {
+                'node_id': from_node,
+                'long_name': decoded.get('long_name'),
+                'short_name': decoded.get('short_name'),
+                'role': decoded.get('role'),
+                'hardware_model': decoded.get('hw_model'),
+                'firmware_version': decoded.get('firmware_version'),
+                'latitude': decoded.get('latitude'),
+                'longitude': decoded.get('longitude'),
+                'altitude': decoded.get('altitude')
+            }
+            db.update_node(node_data)
+            
+            # Emit node update
+            try:
+                with app.app_context():
+                    if hasattr(app, 'emit_node_update'):
+                        app.emit_node_update(node_data)
+            except Exception as e:
+                print(f"[⚠] Failed to emit node update: {e}")
+    
+    except Exception as e:
+        print(f"[⚠] Error processing decoded payload: {e}")
 
 # === Main ===
 def main():

@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meshtastic Network Dashboard</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Vis.js CSS - using a stable version -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" />
+    
+    <!-- Custom CSS -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 60px 1fr 200px;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            background-color: #2d3748;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4fd1c7;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 5px 10px;
+            background-color: #4a5568;
+            border-radius: 6px;
+            min-width: 80px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #a0aec0;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4fd1c7;
+        }
+        
+        .map-container {
+            background-color: #2d3748;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        
+        .graph-container {
+            background-color: #2d3748;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        
+        .panel-title {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background-color: rgba(45, 55, 72, 0.9);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #4fd1c7;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        #network {
+            width: 100%;
+            height: 100%;
+            background-color: #1a202c;
+        }
+        
+        .log-container {
+            grid-column: 1 / -1;
+            background-color: #2d3748;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .log-header {
+            padding: 10px 15px;
+            border-bottom: 1px solid #4a5568;
+            font-weight: bold;
+            color: #4fd1c7;
+        }
+        
+        .log-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 3px 5px;
+            border-radius: 3px;
+        }
+        
+        .log-entry.position {
+            background-color: rgba(72, 187, 120, 0.1);
+            border-left: 3px solid #48bb78;
+        }
+        
+        .log-entry.text {
+            background-color: rgba(66, 153, 225, 0.1);
+            border-left: 3px solid #4299e1;
+        }
+        
+        .log-entry.telemetry {
+            background-color: rgba(237, 137, 54, 0.1);
+            border-left: 3px solid #ed8936;
+        }
+        
+        .log-entry.nodeinfo {
+            background-color: rgba(159, 122, 234, 0.1);
+            border-left: 3px solid #9f7aea;
+        }
+        
+        .timestamp {
+            color: #a0aec0;
+            font-size: 11px;
+        }
+        
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .connection-status.connected {
+            background-color: rgba(72, 187, 120, 0.9);
+            color: white;
+        }
+        
+        .connection-status.disconnected {
+            background-color: rgba(245, 101, 101, 0.9);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">🌐 Meshtastic Network Dashboard</div>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-label">Nodes</div>
+                    <div class="stat-value" id="stat-nodes">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Connections</div>
+                    <div class="stat-value" id="stat-connections">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Packets</div>
+                    <div class="stat-value" id="stat-packets">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Active</div>
+                    <div class="stat-value" id="stat-active">0</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div class="panel-title">📍 Node Locations</div>
+            <div class="connection-status" id="connection-status">Connecting...</div>
+            <div id="map"></div>
+        </div>
+        
+        <div class="graph-container">
+            <div class="panel-title">🔗 Network Graph</div>
+            <div id="network"></div>
+        </div>
+        
+        <div class="log-container">
+            <div class="log-header">📡 Live Activity Feed</div>
+            <div class="log-content" id="log-content">
+                <div class="log-entry">
+                    <span class="timestamp">Waiting for data...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Vis.js - using stable version that should definitely work -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+    
+    <script>
+        // Global variables
+        let map, network, socket;
+        let nodes, edges;
+        let mapMarkers = {};
+        let connectionLines = {};
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            
+            // Wait a bit for vis.js to load
+            setTimeout(function() {
+                console.log('Checking vis availability...');
+                console.log('typeof vis:', typeof vis);
+                
+                if (typeof vis === 'undefined') {
+                    console.error('vis.js library is not available');
+                    document.getElementById('network').innerHTML = 
+                        '<div style="color: white; text-align: center; padding: 50px; font-size: 16px;">' +
+                        '⚠️ Network graph unavailable<br>' +
+                        '<small>vis.js library failed to load</small></div>';
+                } else {
+                    console.log('vis.js is available, version:', vis.version);
+                    // Initialize vis DataSets
+                    nodes = new vis.DataSet();
+                    edges = new vis.DataSet();
+                    console.log('DataSets created');
+                }
+                
+                // Initialize other components
+                initializeMap();
+                if (typeof vis !== 'undefined') {
+                    initializeNetwork();
+                }
+                initializeWebSocket();
+                loadInitialData();
+            }, 500);
+        });
+        
+        function initializeMap() {
+            // Initialize OpenStreetMap
+            map = L.map('map').setView([39.4, -8.2], 8); // Portugal center
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Custom marker styles
+            window.nodeMarkerStyles = {
+                default: { color: '#4fd1c7', radius: 8 },
+                active: { color: '#48bb78', radius: 10 },
+                inactive: { color: '#a0aec0', radius: 6 }
+            };
+        }
+        
+        function initializeNetwork() {
+            // Check if vis is available
+            if (typeof vis === 'undefined') {
+                console.error('vis.js is not available for network initialization');
+                document.getElementById('network').innerHTML = '<div style="color: white; text-align: center; padding: 50px;">Network graph unavailable - vis.js not loaded</div>';
+                return;
+            }
+            
+            // Initialize network graph
+            const container = document.getElementById('network');
+            const data = { nodes: nodes, edges: edges };
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 16,
+                    font: {
+                        size: 12,
+                        color: '#ffffff'
+                    },
+                    borderWidth: 2,
+                    color: {
+                        border: '#4fd1c7',
+                        background: '#2d3748',
+                        highlight: {
+                            border: '#4fd1c7',
+                            background: '#4a5568'
+                        }
+                    }
+                },
+                edges: {
+                    width: 2,
+                    color: {
+                        color: '#4a5568',
+                        highlight: '#4fd1c7'
+                    },
+                    arrows: {
+                        to: { enabled: true, scaleFactor: 0.8 }
+                    },
+                    smooth: {
+                        enabled: true,
+                        type: 'continuous'
+                    }
+                },
+                physics: {
+                    enabled: true,
+                    stabilization: { iterations: 200 },
+                    barnesHut: {
+                        gravitationalConstant: -8000,
+                        springConstant: 0.001,
+                        springLength: 200
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 200
+                }
+            };
+            
+            network = new vis.Network(container, data, options);
+            
+            // Network event handlers
+            network.on('click', function(params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    highlightNode(nodeId);
+                }
+            });
+        }
+        
+        function initializeWebSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                updateConnectionStatus(true);
+                addLogEntry('system', 'Connected to dashboard server');
+            });
+            
+            socket.on('disconnect', function() {
+                updateConnectionStatus(false);
+                addLogEntry('system', 'Disconnected from dashboard server');
+            });
+            
+            socket.on('node_update', function(data) {
+                updateNode(data);
+            });
+            
+            socket.on('connection_update', function(data) {
+                updateConnection(data);
+            });
+            
+            socket.on('packet_update', function(data) {
+                handlePacketUpdate(data);
+            });
+        }
+        
+        function loadInitialData() {
+            // Load nodes
+            fetch('/api/nodes')
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(node => updateNode(node));
+                })
+                .catch(error => console.error('Error loading nodes:', error));
+            
+            // Load connections
+            fetch('/api/connections')
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(connection => updateConnection(connection));
+                })
+                .catch(error => console.error('Error loading connections:', error));
+            
+            // Load stats
+            updateStats();
+            setInterval(updateStats, 10000); // Update every 10 seconds
+        }
+        
+        function updateNode(nodeData) {
+            const nodeId = nodeData.node_id;
+            
+            // Update network graph node (only if vis.js is available)
+            if (typeof vis !== 'undefined' && nodes) {
+                const networkNode = {
+                    id: nodeId,
+                    label: nodeData.short_name || nodeData.long_name || nodeId.slice(-4),
+                    title: `${nodeData.long_name || 'Unknown'}\nID: ${nodeId}\nLast seen: ${nodeData.last_seen || 'Never'}`
+                };
+                
+                if (nodes.get(nodeId)) {
+                    nodes.update(networkNode);
+                } else {
+                    nodes.add(networkNode);
+                }
+            }
+            
+            // Update map marker
+            if (nodeData.latitude && nodeData.longitude) {
+                const lat = nodeData.latitude;
+                const lon = nodeData.longitude;
+                
+                if (mapMarkers[nodeId]) {
+                    mapMarkers[nodeId].setLatLng([lat, lon]);
+                } else {
+                    const marker = L.circleMarker([lat, lon], {
+                        radius: 8,
+                        fillColor: '#4fd1c7',
+                        color: '#ffffff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <b>${nodeData.long_name || nodeData.short_name || 'Unknown'}</b><br>
+                        ID: ${nodeId}<br>
+                        ${nodeData.battery_level ? `Battery: ${nodeData.battery_level}%<br>` : ''}
+                        ${nodeData.last_seen ? `Last seen: ${new Date(nodeData.last_seen).toLocaleString()}` : ''}
+                    `);
+                    
+                    mapMarkers[nodeId] = marker;
+                }
+                
+                // Auto-fit map to show all markers
+                if (Object.keys(mapMarkers).length > 0) {
+                    const group = new L.featureGroup(Object.values(mapMarkers));
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+            }
+            
+            addLogEntry('nodeinfo', `Node ${nodeData.short_name || nodeId.slice(-4)} updated`);
+        }
+        
+        function updateConnection(connectionData) {
+            const edgeId = `${connectionData.from_node}-${connectionData.to_node}`;
+            
+            // Update network graph edge (only if vis.js is available)
+            if (typeof vis !== 'undefined' && edges) {
+                const edge = {
+                    id: edgeId,
+                    from: connectionData.from_node,
+                    to: connectionData.to_node,
+                    label: `${connectionData.packet_count}`,
+                    title: `Packets: ${connectionData.packet_count}\nAvg SNR: ${connectionData.avg_snr?.toFixed(1) || 'N/A'}\nAvg RSSI: ${connectionData.avg_rssi || 'N/A'}`
+                };
+                
+                if (edges.get(edgeId)) {
+                    edges.update(edge);
+                } else {
+                    edges.add(edge);
+                }
+            }
+            
+            // Update map connection line
+            const fromMarker = mapMarkers[connectionData.from_node];
+            const toMarker = mapMarkers[connectionData.to_node];
+            
+            if (fromMarker && toMarker) {
+                const lineId = edgeId;
+                
+                if (connectionLines[lineId]) {
+                    map.removeLayer(connectionLines[lineId]);
+                }
+                
+                const line = L.polyline([
+                    fromMarker.getLatLng(),
+                    toMarker.getLatLng()
+                ], {
+                    color: '#4fd1c7',
+                    weight: Math.min(connectionData.packet_count / 10 + 1, 5),
+                    opacity: 0.6
+                }).addTo(map);
+                
+                line.bindPopup(`
+                    Connection: ${connectionData.from_node.slice(-4)} → ${connectionData.to_node.slice(-4)}<br>
+                    Packets: ${connectionData.packet_count}<br>
+                    Avg SNR: ${connectionData.avg_snr?.toFixed(1) || 'N/A'}<br>
+                    Last seen: ${new Date(connectionData.last_seen).toLocaleString()}
+                `);
+                
+                connectionLines[lineId] = line;
+            }
+        }
+        
+        function handlePacketUpdate(packetData) {
+            const type = packetData.payload_type || 'unknown';
+            const from = packetData.from_node?.slice(-4) || 'Unknown';
+            const to = packetData.to_node?.slice(-4) || 'Broadcast';
+            
+            let message = `${from} → ${to}: ${type}`;
+            if (packetData.payload_data) {
+                try {
+                    const payload = JSON.parse(packetData.payload_data);
+                    if (payload.message) {
+                        message += ` "${payload.message}"`;
+                    } else if (payload.latitude && payload.longitude) {
+                        message += ` (${payload.latitude.toFixed(4)}, ${payload.longitude.toFixed(4)})`;
+                    }
+                } catch (e) {
+                    // Ignore parsing errors
+                }
+            }
+            
+            addLogEntry(type, message);
+        }
+        
+        function updateStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(stats => {
+                    document.getElementById('stat-nodes').textContent = stats.total_nodes || 0;
+                    document.getElementById('stat-connections').textContent = stats.active_connections || 0;
+                    document.getElementById('stat-packets').textContent = stats.recent_packets || 0;
+                    document.getElementById('stat-active').textContent = stats.nodes_with_position || 0;
+                })
+                .catch(error => console.error('Error updating stats:', error));
+        }
+        
+        function updateConnectionStatus(connected) {
+            const statusElement = document.getElementById('connection-status');
+            if (connected) {
+                statusElement.textContent = 'Connected';
+                statusElement.className = 'connection-status connected';
+            } else {
+                statusElement.textContent = 'Disconnected';
+                statusElement.className = 'connection-status disconnected';
+            }
+        }
+        
+        function addLogEntry(type, message) {
+            const logContent = document.getElementById('log-content');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `
+                <span class="timestamp">[${timestamp}]</span> ${message}
+            `;
+            
+            logContent.insertBefore(entry, logContent.firstChild);
+            
+            // Keep only last 100 entries
+            while (logContent.children.length > 100) {
+                logContent.removeChild(logContent.lastChild);
+            }
+        }
+        
+        function highlightNode(nodeId) {
+            // Highlight node on map
+            if (mapMarkers[nodeId]) {
+                mapMarkers[nodeId].openPopup();
+                map.setView(mapMarkers[nodeId].getLatLng(), 12);
+            }
+        }
+    </script>
+</body>
+</html>

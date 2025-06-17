@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vis.js Test</title>
+</head>
+<body>
+    <h1>Testing vis.js loading</h1>
+    <div id="test" style="background: #f0f0f0; padding: 20px; margin: 20px;">
+        Loading vis.js...
+    </div>
+    
+    <!-- Try different vis.js sources -->
+    <script src="https://unpkg.com/vis-network@latest/dist/vis-network.min.js"></script>
+    
+    <script>
+        console.log('Script started');
+        
+        function checkVis() {
+            console.log('Checking vis...');
+            const testDiv = document.getElementById('test');
+            
+            if (typeof vis !== 'undefined') {
+                console.log('vis is available:', vis);
+                testDiv.innerHTML = 'vis.js loaded successfully! Version: ' + (vis.version || 'unknown');
+                testDiv.style.background = '#d4edda';
+                
+                // Test creating a DataSet
+                try {
+                    const testDataSet = new vis.DataSet();
+                    console.log('DataSet created successfully:', testDataSet);
+                    testDiv.innerHTML += '<br>DataSet creation: SUCCESS';
+                } catch (e) {
+                    console.error('DataSet creation failed:', e);
+                    testDiv.innerHTML += '<br>DataSet creation: FAILED - ' + e.message;
+                }
+            } else {
+                console.log('vis is not available');
+                testDiv.innerHTML = 'vis.js NOT loaded';
+                testDiv.style.background = '#f8d7da';
+                
+                // Try alternative source
+                console.log('Trying alternative source...');
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/vis-network.min.js';
+                script.onload = function() {
+                    console.log('Alternative source loaded');
+                    setTimeout(checkVis, 100);
+                };
+                script.onerror = function() {
+                    console.log('Alternative source also failed');
+                    testDiv.innerHTML = 'All vis.js sources failed to load';
+                };
+                document.head.appendChild(script);
+            }
+        }
+        
+        // Check after a delay to allow loading
+        setTimeout(checkVis, 1000);
+    </script>
+</body>
+</html>
