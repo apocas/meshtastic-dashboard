@@ -32,7 +32,7 @@ A comprehensive real-time dashboard for visualizing Meshtastic mesh networks wit
 Create a `.env` file with your MQTT broker details:
 
 ```bash
-MQTT_BROKER=mqtt.meshtastic.pt
+MQTT_BROKER=mqtt.meshtastic.org
 MQTT_PORT=1883
 MQTT_TOPIC=msh/#
 MQTT_USERNAME=meshdev

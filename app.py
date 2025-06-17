@@ -19,9 +19,18 @@ def index():
 
 @app.route('/api/nodes')
 def get_nodes():
-    """API endpoint to get all nodes"""
+    """API endpoint to get all nodes (including those without coordinates)"""
     try:
         nodes = db.get_nodes()
+        return jsonify(nodes)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/nodes/positioned')
+def get_positioned_nodes():
+    """API endpoint to get only nodes with coordinates (for map display)"""
+    try:
+        nodes = db.get_nodes_with_position()
         return jsonify(nodes)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -50,6 +59,7 @@ def get_stats():
     """API endpoint to get network statistics"""
     try:
         nodes = db.get_nodes()
+        positioned_nodes = db.get_nodes_with_position()
         connections = db.get_connections()
         packets = db.get_recent_packets(1000)
         
@@ -57,7 +67,7 @@ def get_stats():
             'total_nodes': len(nodes),
             'active_connections': len(connections),
             'recent_packets': len(packets),
-            'nodes_with_position': len([n for n in nodes if n['latitude'] and n['longitude']])
+            'nodes_with_position': len(positioned_nodes)
         }
         return jsonify(stats)
     except Exception as e:

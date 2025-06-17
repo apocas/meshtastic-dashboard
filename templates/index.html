@@ -294,6 +294,9 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
             
+            // Clear any existing markers
+            mapMarkers = {};
+            
             // Custom marker styles
             window.nodeMarkerStyles = {
                 default: { color: '#4fd1c7', radius: 8 },
@@ -398,11 +401,18 @@
         }
         
         function loadInitialData() {
-            // Load nodes
+            // Load all nodes (updateNode handles both graph and map)
             fetch('/api/nodes')
                 .then(response => response.json())
                 .then(data => {
                     data.forEach(node => updateNode(node));
+                    // Auto-fit map to show all markers after loading
+                    setTimeout(() => {
+                        if (Object.keys(mapMarkers).length > 0) {
+                            const group = new L.featureGroup(Object.values(mapMarkers));
+                            map.fitBounds(group.getBounds().pad(0.1));
+                        }
+                    }, 100);
                 })
                 .catch(error => console.error('Error loading nodes:', error));
             
@@ -421,13 +431,25 @@
         
         function updateNode(nodeData) {
             const nodeId = nodeData.node_id;
+            const hasPosition = nodeData.latitude != null && nodeData.longitude != null && 
+                               nodeData.latitude !== '' && nodeData.longitude !== '' &&
+                               !isNaN(nodeData.latitude) && !isNaN(nodeData.longitude);
             
-            // Update network graph node (only if vis.js is available)
+            // Always update network graph node (show all nodes in graph)
             if (typeof vis !== 'undefined' && nodes) {
                 const networkNode = {
                     id: nodeId,
                     label: nodeData.short_name || nodeData.long_name || nodeId.slice(-4),
-                    title: `${nodeData.long_name || 'Unknown'}\nID: ${nodeId}\nLast seen: ${nodeData.last_seen || 'Never'}`
+                    title: `${nodeData.long_name || 'Unknown'}\nID: ${nodeId}\nLast seen: ${nodeData.last_seen || 'Never'}`,
+                    // Color nodes with position in green, others in default
+                    color: hasPosition ? {
+                        border: '#48bb78',
+                        background: '#68d391',
+                        highlight: {
+                            border: '#38a169',
+                            background: '#9ae6b4'
+                        }
+                    } : undefined
                 };
                 
                 if (nodes.get(nodeId)) {
@@ -437,41 +459,45 @@
                 }
             }
             
-            // Update map marker
-            if (nodeData.latitude && nodeData.longitude) {
-                const lat = nodeData.latitude;
-                const lon = nodeData.longitude;
-                
-                if (mapMarkers[nodeId]) {
-                    mapMarkers[nodeId].setLatLng([lat, lon]);
-                } else {
-                    const marker = L.circleMarker([lat, lon], {
-                        radius: 8,
-                        fillColor: '#4fd1c7',
-                        color: '#ffffff',
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.8
-                    }).addTo(map);
-                    
-                    marker.bindPopup(`
-                        <b>${nodeData.long_name || nodeData.short_name || 'Unknown'}</b><br>
-                        ID: ${nodeId}<br>
-                        ${nodeData.battery_level ? `Battery: ${nodeData.battery_level}%<br>` : ''}
-                        ${nodeData.last_seen ? `Last seen: ${new Date(nodeData.last_seen).toLocaleString()}` : ''}
-                    `);
-                    
-                    mapMarkers[nodeId] = marker;
-                }
-                
-                // Auto-fit map to show all markers
-                if (Object.keys(mapMarkers).length > 0) {
-                    const group = new L.featureGroup(Object.values(mapMarkers));
-                    map.fitBounds(group.getBounds().pad(0.1));
-                }
+            // Update map marker only if node has position
+            if (hasPosition) {
+                updateMapMarker(nodeData);
             }
             
             addLogEntry('nodeinfo', `Node ${nodeData.short_name || nodeId.slice(-4)} updated`);
+        }
+        
+        function updateMapMarker(nodeData) {
+            const nodeId = nodeData.node_id;
+            const lat = nodeData.latitude;
+            const lon = nodeData.longitude;
+            
+            if (!lat || !lon || !map || lat == null || lon == null || 
+                lat === '' || lon === '' || isNaN(lat) || isNaN(lon)) {
+                return; // Skip if no valid coordinates or map not ready
+            }
+            
+            if (mapMarkers[nodeId]) {
+                mapMarkers[nodeId].setLatLng([lat, lon]);
+            } else {
+                const marker = L.circleMarker([lat, lon], {
+                    radius: 8,
+                    fillColor: '#4fd1c7',
+                    color: '#ffffff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+                
+                marker.bindPopup(`
+                    <b>${nodeData.long_name || nodeData.short_name || 'Unknown'}</b><br>
+                    ID: ${nodeId}<br>
+                    ${nodeData.battery_level ? `Battery: ${nodeData.battery_level}%<br>` : ''}
+                    ${nodeData.last_seen ? `Last seen: ${new Date(nodeData.last_seen).toLocaleString()}` : ''}
+                `);
+                
+                mapMarkers[nodeId] = marker;
+            }
         }
         
         function updateConnection(connectionData) {

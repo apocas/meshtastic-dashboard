@@ -44,10 +44,16 @@ def decode_port_payload(portnum, payload_bytes):
         elif portnum == 3 or portnum == portnums_pb2.PortNum.POSITION_APP:
             pos = mesh_pb2.Position()
             pos.ParseFromString(payload_bytes)
+            
+            # Convert from integer degrees to decimal degrees
+            # Note: latitude_i and longitude_i are 0 when not set, so we check for that
+            latitude = pos.latitude_i / 1e7 if hasattr(pos, 'latitude_i') and pos.latitude_i != 0 else None
+            longitude = pos.longitude_i / 1e7 if hasattr(pos, 'longitude_i') and pos.longitude_i != 0 else None
+            
             return {
                 "type": "position",
-                "latitude": pos.latitude_i / 1e7 if pos.latitude_i else None,
-                "longitude": pos.longitude_i / 1e7 if pos.longitude_i else None,
+                "latitude": latitude,
+                "longitude": longitude,
                 "altitude": pos.altitude if pos.altitude != 0 else None,
                 "time": pos.time if pos.time else None,
                 "precision_bits": pos.precision_bits if hasattr(pos, 'precision_bits') else None
@@ -361,6 +367,11 @@ def on_message(client, userdata, msg):
         # Store packet in database
         db.add_packet(packet_data)
         
+        # Ensure both from_node and to_node exist in database (even if we don't have their details yet)
+        ensure_node_exists(from_node)
+        if to_node != "ffffffff":  # Don't track broadcast address as a node
+            ensure_node_exists(to_node)
+        
         # Update connection tracking
         if from_node != to_node and to_node != "ffffffff":  # Exclude broadcasts to self
             db.update_connection(from_node, to_node, packet_data.get('rx_snr'), packet_data.get('rx_rssi'))
@@ -381,10 +392,34 @@ def on_message(client, userdata, msg):
         import traceback
         traceback.print_exc()
 
+def ensure_node_exists(node_id):
+    """Ensure a node exists in the database, create basic entry if not"""
+    try:
+        # Create basic node entry if it doesn't exist
+        node_data = {'node_id': node_id}
+        db.update_node(node_data)
+        
+        # Emit node update
+        try:
+            with app.app_context():
+                if hasattr(app, 'emit_node_update'):
+                    app.emit_node_update(node_data)
+        except Exception as e:
+            print(f"[⚠] Failed to emit node update: {e}")
+    except Exception as e:
+        print(f"[⚠] Error ensuring node exists: {e}")
+
 def process_decoded_payload(decoded, from_node, to_node, packet_data):
     """Process decoded payload and update database accordingly"""
     try:
         payload_type = decoded.get('type')
+        
+        # Always ensure the from_node exists
+        ensure_node_exists(from_node)
+        
+        # Also ensure to_node exists if it's not a broadcast
+        if to_node != 'ffffffff':
+            ensure_node_exists(to_node)
         
         if payload_type == 'position':
             # Update node position
@@ -453,6 +488,10 @@ def process_decoded_payload(decoded, from_node, to_node, packet_data):
             for neighbor in neighbors:
                 neighbor_id = f"{neighbor.get('node_id'):08x}"
                 snr = neighbor.get('snr')
+                
+                # Ensure neighbor node exists
+                ensure_node_exists(neighbor_id)
+                
                 db.update_connection(from_node, neighbor_id, snr=snr)
                 
                 # Emit connection update

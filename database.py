@@ -72,31 +72,64 @@ class MeshtasticDB:
         """Update or insert node data"""
         with self.lock:
             with sqlite3.connect(self.db_path) as conn:
-                conn.execute('''
-                    INSERT OR REPLACE INTO nodes (
-                        node_id, long_name, short_name, hardware_model,
-                        latitude, longitude, altitude, last_seen,
-                        battery_level, voltage, snr, rssi, channel,
-                        firmware_version, role, is_licensed
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    node_data.get('node_id'),
-                    node_data.get('long_name'),
-                    node_data.get('short_name'),
-                    node_data.get('hardware_model'),
-                    node_data.get('latitude'),
-                    node_data.get('longitude'),
-                    node_data.get('altitude'),
-                    datetime.now(),
-                    node_data.get('battery_level'),
-                    node_data.get('voltage'),
-                    node_data.get('snr'),
-                    node_data.get('rssi'),
-                    node_data.get('channel'),
-                    node_data.get('firmware_version'),
-                    node_data.get('role'),
-                    node_data.get('is_licensed')
-                ))
+                node_id = node_data.get('node_id')
+                if not node_id:
+                    return
+                
+                # Check if node exists
+                existing = conn.execute('SELECT * FROM nodes WHERE node_id = ?', (node_id,)).fetchone()
+                
+                if existing:
+                    # Node exists, update only the provided fields
+                    update_fields = []
+                    update_values = []
+                    
+                    for field in ['long_name', 'short_name', 'hardware_model', 'latitude', 'longitude', 'altitude', 
+                                  'battery_level', 'voltage', 'snr', 'rssi', 'channel', 'firmware_version', 'role', 'is_licensed']:
+                        if field in node_data and node_data[field] is not None:
+                            update_fields.append(f"{field} = ?")
+                            update_values.append(node_data[field])
+                    
+                    # Always update last_seen
+                    update_fields.append("last_seen = ?")
+                    update_values.append(datetime.now())
+                    update_values.append(node_id)  # for WHERE clause
+                    
+                    if update_fields:
+                        query = f"UPDATE nodes SET {', '.join(update_fields)} WHERE node_id = ?"
+                        conn.execute(query, update_values)
+                        
+                        # Log position updates
+                        if 'latitude' in node_data or 'longitude' in node_data:
+                            print(f"[�] Updated position for {node_id}: lat={node_data.get('latitude')}, lon={node_data.get('longitude')}")
+                else:
+                    # Node doesn't exist, insert new record
+                    conn.execute('''
+                        INSERT INTO nodes (
+                            node_id, long_name, short_name, hardware_model,
+                            latitude, longitude, altitude, last_seen,
+                            battery_level, voltage, snr, rssi, channel,
+                            firmware_version, role, is_licensed
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        node_data.get('node_id'),
+                        node_data.get('long_name'),
+                        node_data.get('short_name'),
+                        node_data.get('hardware_model'),
+                        node_data.get('latitude'),
+                        node_data.get('longitude'),
+                        node_data.get('altitude'),
+                        datetime.now(),
+                        node_data.get('battery_level'),
+                        node_data.get('voltage'),
+                        node_data.get('snr'),
+                        node_data.get('rssi'),
+                        node_data.get('channel'),
+                        node_data.get('firmware_version'),
+                        node_data.get('role'),
+                        node_data.get('is_licensed')
+                    ))
+                
                 conn.commit()
     
     def add_packet(self, packet_data):
@@ -162,7 +195,17 @@ class MeshtasticDB:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             return [dict(row) for row in conn.execute('''
-                SELECT * FROM nodes WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                SELECT * FROM nodes 
+                ORDER BY last_seen DESC
+            ''').fetchall()]
+    
+    def get_nodes_with_position(self):
+        """Get only nodes that have coordinates"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            return [dict(row) for row in conn.execute('''
+                SELECT * FROM nodes 
+                WHERE latitude IS NOT NULL AND longitude IS NOT NULL
                 ORDER BY last_seen DESC
             ''').fetchall()]
     

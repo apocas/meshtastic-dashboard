@@ -15,27 +15,32 @@ def show_database_status():
     
     # Get all data
     nodes = db.get_nodes()
+    positioned_nodes = db.get_nodes_with_position()
     connections = db.get_connections()
     packets = db.get_recent_packets(20)
     
-    print(f"\n📍 Nodes ({len(nodes)} total):")
-    print("-" * 30)
+    print(f"\n📍 All Nodes ({len(nodes)} total, {len(positioned_nodes)} with position):")
+    print("-" * 50)
     
-    for node in nodes[:10]:  # Show first 10 nodes
+    for node in nodes[:15]:  # Show first 15 nodes
         lat = node['latitude'] or 0
         lon = node['longitude'] or 0
         battery = f"{node['battery_level']}%" if node['battery_level'] else "N/A"
         last_seen = node['last_seen'] or "Never"
+        has_pos = "📍" if node['latitude'] and node['longitude'] else "❓"
         
-        print(f"  🔹 {node['long_name'] or node['short_name'] or node['node_id']}")
+        print(f"  {has_pos} {node['long_name'] or node['short_name'] or node['node_id']}")
         print(f"     ID: {node['node_id']}")
-        print(f"     Location: {lat:.4f}, {lon:.4f}")
+        if node['latitude'] and node['longitude']:
+            print(f"     Location: {lat:.4f}, {lon:.4f}")
+        else:
+            print(f"     Location: Unknown")
         print(f"     Battery: {battery}")
         print(f"     Last seen: {last_seen}")
         print()
     
-    if len(nodes) > 10:
-        print(f"     ... and {len(nodes) - 10} more nodes")
+    if len(nodes) > 15:
+        print(f"     ... and {len(nodes) - 15} more nodes")
     
     print(f"\n🔗 Connections ({len(connections)} total):")
     print("-" * 30)
