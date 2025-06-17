@@ -522,6 +522,11 @@
                     ${nodeData.last_seen ? `Last seen: ${new Date(nodeData.last_seen).toLocaleString()}` : ''}
                 `);
                 
+                // Add click event to focus on node in graph
+                marker.on('click', function() {
+                    focusOnNodeInGraph(nodeId);
+                });
+                
                 mapMarkers[nodeId] = marker;
             }
             
@@ -564,6 +569,26 @@
                         }
                     }
                 });
+            }
+        }
+        
+        function focusOnNodeInGraph(nodeId) {
+            if (typeof vis !== 'undefined' && network && nodes) {
+                // Check if the node exists in the graph
+                const node = nodes.get(nodeId);
+                if (node) {
+                    // Focus on the node with animation
+                    network.focus(nodeId, {
+                        scale: 1.0,
+                        animation: {
+                            duration: 500,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                    
+                    // Select the node to highlight it
+                    network.selectNodes([nodeId]);
+                }
             }
         }
         
