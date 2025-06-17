@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
 import json
 import struct
+import base64
 from base64 import b64decode
 from Crypto.Cipher import AES
 
@@ -176,48 +177,85 @@ def decode_port_payload(portnum, payload_bytes):
 
 def create_nonce(packet_id, from_node):
     """Create nonce for AES-CTR decryption"""
-    # Expand packetId to 64 bits
-    packet_id_64 = packet_id & 0xFFFFFFFFFFFFFFFF
-    
-    # Initialize block counter (32-bit, starts at zero)
-    block_counter = 0
-    
-    # Create nonce buffer (16 bytes)
+    # Create nonce buffer (16 bytes) exactly as in the JavaScript reference
     nonce = bytearray(16)
     
     # Write packetId (8 bytes, little endian)
-    struct.pack_into('<Q', nonce, 0, packet_id_64)
+    struct.pack_into('<Q', nonce, 0, packet_id)
     
-    # Write fromNode (4 bytes, little endian)
+    # Write fromNode (4 bytes, little endian) 
     struct.pack_into('<I', nonce, 8, from_node)
     
-    # Write block counter (4 bytes, little endian)
-    struct.pack_into('<I', nonce, 12, block_counter)
+    # Write block counter (4 bytes, little endian) - starts at 0
+    struct.pack_into('<I', nonce, 12, 0)
     
     return bytes(nonce)
 
-def decrypt_payload(encrypted_bytes, packet_id, from_node, key_b64="AQ=="):
-    """Decrypt MeshPacket using AES-CTR with proper nonce"""
-    try:
-        key = b64decode(key_b64)
-        nonce = create_nonce(packet_id, from_node)
-        
-        # Determine algorithm based on key length
-        if len(key) == 16:
-            algorithm = "aes-128-ctr"
-        elif len(key) == 32:
-            algorithm = "aes-256-ctr" 
-        else:
-            print(f"[❌] Invalid key length: {len(key)}")
-            return None
+def decrypt_payload(encrypted_bytes, packet_id, from_node):
+    """Decrypt MeshPacket using AES-CTR with proper nonce, trying common keys"""
+    # Common Meshtastic keys to try
+    keys_to_try = [
+        ("AQ==", "Default key AQ== padded"),
+        (base64.b64encode(b'\x00' * 16).decode(), "All zeros 16-byte"),
+        ("1PG7OiApB1nwvP+rz05pAQ==", "Reference implementation key"),
+    ]
+    
+    for key_b64, key_desc in keys_to_try:
+        try:
+            # Decode the base64 key
+            key_raw = b64decode(key_b64)
             
-        # Create cipher and decrypt
-        cipher = AES.new(key, AES.MODE_CTR, nonce=nonce)
-        decrypted = cipher.decrypt(encrypted_bytes)
-        return decrypted
-    except Exception as e:
-        print(f"[❌] Decryption error: {e}")
-        return None
+            # If key is "AQ==" (1 byte), pad it to 16 bytes for AES-128
+            if len(key_raw) == 1:
+                key = key_raw + b'\x00' * 15  # Pad with zeros to 16 bytes
+            elif len(key_raw) == 16:
+                key = key_raw
+            elif len(key_raw) == 32:
+                key = key_raw
+            else:
+                print(f"[❌] Skipping key with invalid length: {len(key_raw)} bytes")
+                continue
+            
+            print(f"[🔍] Trying key: {key_desc} - {key.hex(' ')}")
+            
+            nonce = create_nonce(packet_id, from_node)
+            print(f"[🔍] Using nonce: {nonce.hex(' ')}")
+            
+            # Create cipher and decrypt using the full nonce as initial_value
+            from Crypto.Util import Counter
+            ctr = Counter.new(128, initial_value=int.from_bytes(nonce, 'big'))
+            cipher = AES.new(key, AES.MODE_CTR, counter=ctr)
+            decrypted = cipher.decrypt(encrypted_bytes)
+            
+            # Debug: show decrypted bytes
+            print(f"[🔍] Decrypted {len(decrypted)} bytes: {decrypted.hex(' ')}")
+            
+            # Try to validate the decrypted data by parsing it as Data protobuf
+            try:
+                test_data = mesh_pb2.Data()
+                test_data.ParseFromString(decrypted)
+                print(f"[🔓] Successfully decrypted and validated with {key_desc} ({len(key)*8}-bit AES)")
+                return decrypted
+            except Exception as e:
+                print(f"[❌] Key '{key_desc}' - decrypted data is not valid protobuf: {e}")
+                # Try to see if it looks like text
+                try:
+                    text = decrypted.decode('utf-8', errors='replace')
+                    if text.isprintable() and len(text.strip()) > 0:
+                        print(f"[🔍] Decrypted as text: '{text.strip()}'")
+                except:
+                    pass
+                continue
+                
+        except Exception as e:
+            print(f"[❌] Error with key '{key_desc}': {e}")
+            continue
+    
+    print(f"[❌] Failed to decrypt with any of {len(keys_to_try)} keys")
+    return None
+    
+    print(f"[❌] Failed to decrypt with any of {len(keys_b64 if isinstance(keys_b64, list) else [keys_b64])} keys")
+    return None
 
 # === MQTT Callbacks ===
 def on_connect(client, userdata, flags, rc):
