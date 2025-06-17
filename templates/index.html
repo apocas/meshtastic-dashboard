@@ -429,6 +429,29 @@
             setInterval(updateStats, 10000); // Update every 10 seconds
         }
         
+        function ensureNodeExists(nodeId) {
+            if (!nodeId || nodeId === 'ffffffff') return; // Skip invalid or broadcast IDs
+            
+            if (typeof vis !== 'undefined' && nodes && !nodes.get(nodeId)) {
+                // Create placeholder node
+                const placeholderNode = {
+                    id: nodeId,
+                    label: nodeId.slice(-4), // Show last 4 characters
+                    title: `Node ID: ${nodeId}\nStatus: Unknown`,
+                    color: {
+                        border: '#a0aec0',
+                        background: '#e2e8f0',
+                        highlight: {
+                            border: '#718096',
+                            background: '#cbd5e0'
+                        }
+                    }
+                };
+                
+                nodes.add(placeholderNode);
+            }
+        }
+        
         function updateNode(nodeData) {
             const nodeId = nodeData.node_id;
             const hasPosition = nodeData.latitude != null && nodeData.longitude != null && 
@@ -464,6 +487,9 @@
                 updateMapMarker(nodeData);
             }
             
+            // Check if any existing connections can now draw map lines
+            redrawMapConnectionsForNode(nodeId);
+            
             addLogEntry('nodeinfo', `Node ${nodeData.short_name || nodeId.slice(-4)} updated`);
         }
         
@@ -498,10 +524,55 @@
                 
                 mapMarkers[nodeId] = marker;
             }
+            
+            // Check if any existing connections can now draw map lines
+            redrawMapConnectionsForNode(nodeId);
+        }
+        
+        function redrawMapConnectionsForNode(nodeId) {
+            // Look through all existing edges in the network to find connections involving this node
+            if (typeof vis !== 'undefined' && edges) {
+                const allEdges = edges.get();
+                allEdges.forEach(edge => {
+                    if (edge.from === nodeId || edge.to === nodeId) {
+                        const fromMarker = mapMarkers[edge.from];
+                        const toMarker = mapMarkers[edge.to];
+                        
+                        if (fromMarker && toMarker) {
+                            const edgeId = edge.id;
+                            
+                            // Only create line if it doesn't exist yet
+                            if (!connectionLines[edgeId]) {
+                                const line = L.polyline([
+                                    fromMarker.getLatLng(),
+                                    toMarker.getLatLng()
+                                ], {
+                                    color: '#4fd1c7',
+                                    weight: 2,
+                                    opacity: 0.7
+                                }).addTo(map);
+                                
+                                line.bindPopup(`
+                                    <b>Connection</b><br>
+                                    From: ${edge.from.slice(-4)}<br>
+                                    To: ${edge.to.slice(-4)}<br>
+                                    ${edge.title || ''}
+                                `);
+                                
+                                connectionLines[edgeId] = line;
+                            }
+                        }
+                    }
+                });
+            }
         }
         
         function updateConnection(connectionData) {
             const edgeId = `${connectionData.from_node}-${connectionData.to_node}`;
+            
+            // Ensure both nodes exist (create placeholders if needed)
+            ensureNodeExists(connectionData.from_node);
+            ensureNodeExists(connectionData.to_node);
             
             // Update network graph edge (only if vis.js is available)
             if (typeof vis !== 'undefined' && edges) {
