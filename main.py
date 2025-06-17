@@ -8,8 +8,6 @@ import base64
 from base64 import b64decode
 from Crypto.Cipher import AES
 
-
-
 from google.protobuf.message import DecodeError
 from meshtastic import mesh_pb2, portnums_pb2, telemetry_pb2, mqtt_pb2
 
@@ -191,68 +189,37 @@ def create_nonce(packet_id, from_node):
     
     return bytes(nonce)
 
-def decrypt_payload(encrypted_bytes, packet_id, from_node):
-    """Decrypt MeshPacket using AES-CTR with proper nonce, trying common keys"""
-    # Common Meshtastic keys to try
-    keys_to_try = [
-        ("AQ==", "Default key AQ== padded"),
-        (base64.b64encode(b'\x00' * 16).decode(), "All zeros 16-byte"),
-        ("1PG7OiApB1nwvP+rz05pAQ==", "Reference implementation key"),
-    ]
-    
-    for key_b64, key_desc in keys_to_try:
+def decrypt_payload(encrypted_bytes, packet_id, from_node, key_b64="1PG7OiApB1nwvP+rz05pAQ=="):
+    """Decrypt MeshPacket using AES-CTR with proper nonce"""
+    try:
+        # Decode the base64 key
+        key = b64decode(key_b64)
+        
+        if len(key) not in [16, 32]:
+            print(f"[❌] Invalid key length: {len(key)} bytes")
+            return None
+        
+        nonce = create_nonce(packet_id, from_node)
+        
+        # Create cipher and decrypt using the full nonce as initial_value
+        from Crypto.Util import Counter
+        ctr = Counter.new(128, initial_value=int.from_bytes(nonce, 'big'))
+        cipher = AES.new(key, AES.MODE_CTR, counter=ctr)
+        decrypted = cipher.decrypt(encrypted_bytes)
+        
+        # Try to validate the decrypted data by parsing it as Data protobuf
         try:
-            # Decode the base64 key
-            key_raw = b64decode(key_b64)
-            
-            # If key is "AQ==" (1 byte), pad it to 16 bytes for AES-128
-            if len(key_raw) == 1:
-                key = key_raw + b'\x00' * 15  # Pad with zeros to 16 bytes
-            elif len(key_raw) == 16:
-                key = key_raw
-            elif len(key_raw) == 32:
-                key = key_raw
-            else:
-                print(f"[❌] Skipping key with invalid length: {len(key_raw)} bytes")
-                continue
-            
-            print(f"[🔍] Trying key: {key_desc} - {key.hex(' ')}")
-            
-            nonce = create_nonce(packet_id, from_node)
-            print(f"[🔍] Using nonce: {nonce.hex(' ')}")
-            
-            # Create cipher and decrypt using the full nonce as initial_value
-            from Crypto.Util import Counter
-            ctr = Counter.new(128, initial_value=int.from_bytes(nonce, 'big'))
-            cipher = AES.new(key, AES.MODE_CTR, counter=ctr)
-            decrypted = cipher.decrypt(encrypted_bytes)
-            
-            # Debug: show decrypted bytes
-            print(f"[🔍] Decrypted {len(decrypted)} bytes: {decrypted.hex(' ')}")
-            
-            # Try to validate the decrypted data by parsing it as Data protobuf
-            try:
-                test_data = mesh_pb2.Data()
-                test_data.ParseFromString(decrypted)
-                print(f"[🔓] Successfully decrypted and validated with {key_desc} ({len(key)*8}-bit AES)")
-                return decrypted
-            except Exception as e:
-                print(f"[❌] Key '{key_desc}' - decrypted data is not valid protobuf: {e}")
-                # Try to see if it looks like text
-                try:
-                    text = decrypted.decode('utf-8', errors='replace')
-                    if text.isprintable() and len(text.strip()) > 0:
-                        print(f"[🔍] Decrypted as text: '{text.strip()}'")
-                except:
-                    pass
-                continue
-                
+            test_data = mesh_pb2.Data()
+            test_data.ParseFromString(decrypted)
+            print(f"[🔓] Successfully decrypted {len(decrypted)} bytes")
+            return decrypted
         except Exception as e:
-            print(f"[❌] Error with key '{key_desc}': {e}")
-            continue
-    
-    print(f"[❌] Failed to decrypt with any of {len(keys_to_try)} keys")
-    return None
+            print(f"[❌] Decrypted data is not valid protobuf: {e}")
+            return None
+            
+    except Exception as e:
+        print(f"[❌] Decryption error: {e}")
+        return None
     
     print(f"[❌] Failed to decrypt with any of {len(keys_b64 if isinstance(keys_b64, list) else [keys_b64])} keys")
     return None
