@@ -54,6 +54,34 @@ def get_packets():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/search/node/<node_id>')
+def search_node(node_id):
+    """API endpoint to search for a specific node by ID"""
+    try:
+        # Remove ! prefix if present
+        clean_node_id = node_id.lstrip('!')
+        
+        # Search for the node
+        node = db.get_node_by_id(clean_node_id)
+        if not node:
+            return jsonify({'error': 'Node not found'}), 404
+        
+        return jsonify(node)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/packets/node/<node_id>')
+def get_node_packets(node_id):
+    """API endpoint to get packets involving a specific node (last 24 hours)"""
+    try:
+        # Remove ! prefix if present
+        clean_node_id = node_id.lstrip('!')
+        
+        packets = db.get_packets_by_node(clean_node_id)
+        return jsonify(packets)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/stats')
 def get_stats():
     """API endpoint to get network statistics"""

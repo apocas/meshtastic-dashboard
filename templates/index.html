@@ -45,6 +45,24 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }
         
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+        
+        .header-center {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
         .title {
             font-size: 24px;
             font-weight: bold;
@@ -190,28 +208,273 @@
             background-color: rgba(245, 101, 101, 0.9);
             color: white;
         }
+        
+        .header-search {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header-search-input {
+            padding: 6px 12px;
+            border: 1px solid #4a5568;
+            border-radius: 4px;
+            background-color: #1a202c;
+            color: #e2e8f0;
+            font-size: 14px;
+            width: 250px;
+        }
+        
+        .header-search-input::placeholder {
+            color: #718096;
+        }
+        
+        .header-search-input:focus {
+            outline: none;
+            border-color: #4fd1c7;
+            box-shadow: 0 0 0 2px rgba(79, 209, 199, 0.2);
+        }
+        
+        .header-search-button {
+            padding: 6px 12px;
+            background-color: #4fd1c7;
+            color: #1a202c;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        .header-search-button:hover {
+            background-color: #38b2ac;
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-content {
+            background-color: #1a202c;
+            margin: 50px auto;
+            padding: 0;
+            border: 1px solid #4a5568;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-header {
+            background-color: #2d3748;
+            padding: 15px 20px;
+            border-bottom: 1px solid #4a5568;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-title {
+            color: #4fd1c7;
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: #a0aec0;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .modal-close:hover {
+            background-color: #4a5568;
+            color: #e2e8f0;
+        }
+        
+        .modal-body {
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        /* Keep existing search result styles but remove the search-results class max-height */
+        .search-results {
+            padding: 0;
+            background: transparent;
+            border: none;
+        }
+        
+        .search-message {
+            padding: 20px;
+            text-align: center;
+            color: #a0aec0;
+            font-style: italic;
+        }
+        
+        .search-result-section {
+            background-color: #1a202c;
+            border-radius: 6px;
+            border: 1px solid #4a5568;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+        
+        .search-result-section h3 {
+            background-color: #2d3748;
+            color: #4fd1c7;
+            margin: 0;
+            padding: 12px 15px;
+            font-size: 16px;
+            border-bottom: 1px solid #4a5568;
+        }
+        
+        .node-details, .packets-list {
+            padding: 15px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(74, 85, 104, 0.3);
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #a0aec0;
+            min-width: 100px;
+        }
+        
+        .detail-value {
+            color: #e2e8f0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .no-packets {
+            text-align: center;
+            color: #a0aec0;
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        .packet-item {
+            background-color: #2d3748;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 3px solid #4fd1c7;
+        }
+        
+        .packet-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .packet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .packet-time {
+            font-size: 12px;
+            color: #a0aec0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .packet-type {
+            background-color: #4a5568;
+            color: #e2e8f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .packet-route {
+            font-size: 13px;
+            color: #e2e8f0;
+            margin-bottom: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .packet-channel, .packet-signal {
+            font-size: 11px;
+            color: #a0aec0;
+            margin-bottom: 4px;
+        }
+        
+        .packet-payload {
+            background-color: #1a202c;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #e2e8f0;
+            margin-top: 8px;
+            border-left: 2px solid #38b2ac;
+            font-family: 'Courier New', monospace;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="title">🌐 Meshtastic Network Dashboard</div>
-            <div class="stats">
-                <div class="stat-item">
-                    <div class="stat-label">Nodes</div>
-                    <div class="stat-value" id="stat-nodes">0</div>
+            <div class="header-left">
+                <div class="title">🌐 Meshtastic Network Dashboard</div>
+            </div>
+            <div class="header-center">
+                <div class="header-search">
+                    <input type="text" class="header-search-input" id="nodeSearchInput" placeholder="Search node ID (e.g., da639854)...">
+                    <button class="header-search-button" onclick="searchNode()">🔍 Search</button>
                 </div>
-                <div class="stat-item">
-                    <div class="stat-label">Connections</div>
-                    <div class="stat-value" id="stat-connections">0</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Packets</div>
-                    <div class="stat-value" id="stat-packets">0</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Active</div>
-                    <div class="stat-value" id="stat-active">0</div>
+            </div>
+            <div class="header-right">
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-label">Nodes</div>
+                        <div class="stat-value" id="stat-nodes">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Connections</div>
+                        <div class="stat-value" id="stat-connections">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Packets</div>
+                        <div class="stat-value" id="stat-packets">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Active</div>
+                        <div class="stat-value" id="stat-active">0</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -237,6 +500,21 @@
         </div>
     </div>
 
+    <!-- Search Results Modal -->
+    <div id="searchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Node Search Results</h2>
+                <button class="modal-close" onclick="closeSearchModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="searchResults">
+                    <!-- Search results will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
@@ -256,6 +534,23 @@
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM loaded');
+            
+            // Setup search input event listener
+            const searchInput = document.getElementById('nodeSearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchNode();
+                    }
+                });
+            }
+            
+            // Setup modal close on Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeSearchModal();
+                }
+            });
             
             // Wait a bit for vis.js to load
             setTimeout(function() {
@@ -715,6 +1010,200 @@
             if (mapMarkers[nodeId]) {
                 mapMarkers[nodeId].openPopup();
                 map.setView(mapMarkers[nodeId].getLatLng(), 12);
+            }
+        }
+        
+        // Search functionality
+        async function searchNode() {
+            const input = document.getElementById('nodeSearchInput');
+            const modal = document.getElementById('searchModal');
+            const resultsDiv = document.getElementById('searchResults');
+            const searchTerm = input.value.trim();
+            
+            if (!searchTerm) {
+                alert('Please enter a node ID to search');
+                return;
+            }
+            
+            // Show modal and loading message
+            modal.style.display = 'block';
+            resultsDiv.innerHTML = '<div class="search-message">🔍 Searching...</div>';
+            
+            try {
+                // Search for the node
+                const nodeResponse = await fetch(`/api/search/node/${encodeURIComponent(searchTerm)}`);
+                
+                if (!nodeResponse.ok) {
+                    if (nodeResponse.status === 404) {
+                        resultsDiv.innerHTML = '<div class="search-message">❌ Node not found</div>';
+                    } else {
+                        resultsDiv.innerHTML = '<div class="search-message">❌ Error searching for node</div>';
+                    }
+                    return;
+                }
+                
+                const nodeData = await nodeResponse.json();
+                
+                // Get packets for this node
+                const packetsResponse = await fetch(`/api/packets/node/${encodeURIComponent(searchTerm)}`);
+                let packets = [];
+                if (packetsResponse.ok) {
+                    packets = await packetsResponse.json();
+                }
+                
+                // Display results
+                displaySearchResults(nodeData, packets);
+                
+                // Highlight the node on map and graph
+                highlightSearchedNode(nodeData.node_id);
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                resultsDiv.innerHTML = '<div class="search-message">❌ Error occurred during search</div>';
+            }
+        }
+        
+        function closeSearchModal() {
+            const modal = document.getElementById('searchModal');
+            modal.style.display = 'none';
+        }
+        
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('searchModal');
+            if (event.target === modal) {
+                closeSearchModal();
+            }
+        }
+        
+        function displaySearchResults(nodeData, packets) {
+            const resultsDiv = document.getElementById('searchResults');
+            
+            // Format node information
+            const hasPosition = nodeData.latitude && nodeData.longitude;
+            const lastSeen = nodeData.last_seen ? new Date(nodeData.last_seen).toLocaleString() : 'Never';
+            
+            let nodeInfo = `
+                <div class="search-result-section">
+                    <h3>🔍 Node Details</h3>
+                    <div class="node-details">
+                        <div class="detail-row">
+                            <span class="detail-label">ID:</span>
+                            <span class="detail-value">!${nodeData.node_id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Long Name:</span>
+                            <span class="detail-value">${nodeData.long_name || 'Unknown'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Short Name:</span>
+                            <span class="detail-value">${nodeData.short_name || 'Unknown'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Hardware:</span>
+                            <span class="detail-value">${nodeData.hardware_model || 'Unknown'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Position:</span>
+                            <span class="detail-value">${hasPosition ? 
+                                `${nodeData.latitude.toFixed(6)}, ${nodeData.longitude.toFixed(6)}` : 
+                                'No position data'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Last Seen:</span>
+                            <span class="detail-value">${lastSeen}</span>
+                        </div>
+                        ${nodeData.battery_level ? `
+                        <div class="detail-row">
+                            <span class="detail-label">Battery:</span>
+                            <span class="detail-value">${nodeData.battery_level}%</span>
+                        </div>` : ''}
+                        ${nodeData.snr ? `
+                        <div class="detail-row">
+                            <span class="detail-label">SNR:</span>
+                            <span class="detail-value">${nodeData.snr} dB</span>
+                        </div>` : ''}
+                        ${nodeData.rssi ? `
+                        <div class="detail-row">
+                            <span class="detail-label">RSSI:</span>
+                            <span class="detail-value">${nodeData.rssi} dBm</span>
+                        </div>` : ''}
+                    </div>
+                </div>
+            `;
+            
+            // Format recent packets/messages
+            let packetsInfo = `
+                <div class="search-result-section">
+                    <h3>📡 Recent Messages (Last 24 Hours)</h3>
+                    <div class="packets-list">
+            `;
+            
+            if (packets.length === 0) {
+                packetsInfo += '<div class="no-packets">No messages found in the last 24 hours</div>';
+            } else {
+                packets.forEach(packet => {
+                    const timestamp = new Date(packet.timestamp).toLocaleString();
+                    const portTypeMap = {
+                        '1': 'TEXT_MESSAGE_APP',
+                        '3': 'POSITION_APP',
+                        '4': 'NODEINFO_APP',
+                        '67': 'TELEMETRY_APP',
+                        '71': 'NEIGHBORINFO_APP'
+                    };
+                    const portName = portTypeMap[packet.port_num] || `Port ${packet.port_num}`;
+                    
+                    packetsInfo += `
+                        <div class="packet-item">
+                            <div class="packet-header">
+                                <span class="packet-time">${timestamp}</span>
+                                <span class="packet-type">${portName}</span>
+                            </div>
+                            <div class="packet-route">
+                                From: <strong>!${packet.from_node}</strong> → To: <strong>!${packet.to_node}</strong>
+                                ${packet.gateway_id && packet.gateway_id !== packet.from_node && packet.gateway_id !== packet.to_node ? 
+                                    ` via <strong>!${packet.gateway_id}</strong>` : ''}
+                            </div>
+                            ${packet.channel ? `<div class="packet-channel">Channel: ${packet.channel}</div>` : ''}
+                            ${(packet.snr || packet.rssi) ? `
+                                <div class="packet-signal">
+                                    ${packet.snr ? `SNR: ${packet.snr} dB ` : ''}
+                                    ${packet.rssi ? `RSSI: ${packet.rssi} dBm` : ''}
+                                </div>
+                            ` : ''}
+                            ${packet.payload_data && packet.port_num === '1' ? `
+                                <div class="packet-payload">${packet.payload_data}</div>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+            }
+            
+            packetsInfo += '</div></div>';
+            
+            resultsDiv.innerHTML = nodeInfo + packetsInfo;
+        }
+        
+        function highlightSearchedNode(nodeId) {
+            // Highlight on map if node has position
+            if (mapMarkers[nodeId]) {
+                mapMarkers[nodeId].openPopup();
+                map.setView(mapMarkers[nodeId].getLatLng(), 12);
+            }
+            
+            // Highlight on network graph
+            if (network && nodes) {
+                const nodeExists = nodes.get(nodeId);
+                if (nodeExists) {
+                    network.selectNodes([nodeId]);
+                    network.focus(nodeId, {
+                        scale: 1.5,
+                        animation: {
+                            duration: 1000,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                }
             }
         }
     </script>

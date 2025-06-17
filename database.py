@@ -215,3 +215,22 @@ class MeshtasticDB:
                 ORDER BY timestamp DESC 
                 LIMIT ?
             ''', (limit,)).fetchall()]
+
+    def get_node_by_id(self, node_id):
+        """Get a specific node by ID"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            result = conn.execute('SELECT * FROM nodes WHERE node_id = ?', (node_id,)).fetchone()
+            return dict(result) if result else None
+    
+    def get_packets_by_node(self, node_id, hours=24):
+        """Get packets involving a specific node from the last N hours"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            # Get packets where the node is either sender, receiver, or gateway
+            return [dict(row) for row in conn.execute('''
+                SELECT * FROM packets 
+                WHERE (from_node = ? OR to_node = ? OR gateway_id = ?)
+                AND timestamp >= datetime('now', '-{} hours')
+                ORDER BY timestamp DESC
+            '''.format(hours), (node_id, node_id, node_id)).fetchall()]
