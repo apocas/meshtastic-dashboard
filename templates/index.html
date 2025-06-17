@@ -443,43 +443,13 @@
             border-left: 2px solid #38b2ac;
             font-family: 'Courier New', monospace;
         }
-        
-        /* Custom tooltip styles for map */
-        .custom-tooltip {
-            background-color: rgba(26, 32, 44, 0.95) !important;
-            border: 1px solid #4a5568 !important;
-            border-radius: 6px !important;
-            color: #e2e8f0 !important;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-        }
-        
-        .custom-tooltip:before {
-            border-top-color: #4a5568 !important;
-        }
-        
-        .leaflet-tooltip-top:before {
-            border-top-color: #4a5568 !important;
-        }
-        
-        .leaflet-tooltip-bottom:before {
-            border-bottom-color: #4a5568 !important;
-        }
-        
-        .leaflet-tooltip-left:before {
-            border-left-color: #4a5568 !important;
-        }
-        
-        .leaflet-tooltip-right:before {
-            border-right-color: #4a5568 !important;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <div class="title">🌐 Meshtastic Dashboard</div>
+                <div class="title">🌐 Meshtastic Network Dashboard</div>
             </div>
             <div class="header-center">
                 <div class="header-search">
@@ -829,70 +799,7 @@
             }
             
             if (mapMarkers[nodeId]) {
-                // Update existing marker position
                 mapMarkers[nodeId].setLatLng([lat, lon]);
-                
-                // Update popup and tooltip content
-                const popupContent = `
-                    <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
-                        <div style="font-weight: bold; font-size: 14px; color: #2d3748; margin-bottom: 8px;">
-                            ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
-                        </div>
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>ID:</strong> !${nodeId}
-                        </div>
-                        ${nodeData.short_name && nodeData.long_name !== nodeData.short_name ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Short Name:</strong> ${nodeData.short_name}
-                        </div>` : ''}
-                        ${nodeData.hardware_model ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Hardware:</strong> ${nodeData.hardware_model}
-                        </div>` : ''}
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Position:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}
-                        </div>
-                        ${nodeData.altitude ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Altitude:</strong> ${nodeData.altitude}m
-                        </div>` : ''}
-                        ${nodeData.battery_level ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Battery:</strong> ${nodeData.battery_level}%
-                        </div>` : ''}
-                        ${nodeData.voltage ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Voltage:</strong> ${nodeData.voltage}V
-                        </div>` : ''}
-                        ${nodeData.snr ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>SNR:</strong> ${nodeData.snr} dB
-                        </div>` : ''}
-                        ${nodeData.rssi ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>RSSI:</strong> ${nodeData.rssi} dBm
-                        </div>` : ''}
-                        ${nodeData.last_seen ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0;">
-                            <strong>Last seen:</strong> ${new Date(nodeData.last_seen).toLocaleString()}
-                        </div>` : ''}
-                    </div>
-                `;
-                
-                const tooltipContent = `
-                    <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 250px;">
-                        <div style="font-weight: bold; margin-bottom: 4px;">
-                            ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
-                        </div>
-                        <div style="color: #666; margin-bottom: 2px;">ID: !${nodeId}</div>
-                        ${nodeData.hardware_model ? `<div style="color: #666; margin-bottom: 2px;">${nodeData.hardware_model}</div>` : ''}
-                        ${nodeData.battery_level ? `<div style="color: #666; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
-                        ${nodeData.last_seen ? `<div style="color: #666; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
-                    </div>
-                `;
-                
-                mapMarkers[nodeId].setPopupContent(popupContent);
-                mapMarkers[nodeId].setTooltipContent(tooltipContent);
             } else {
                 const marker = L.circleMarker([lat, lon], {
                     radius: 8,
@@ -903,98 +810,16 @@
                     fillOpacity: 0.8
                 }).addTo(map);
                 
-                // Create detailed popup content
-                const popupContent = `
-                    <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
-                        <div style="font-weight: bold; font-size: 14px; color: #2d3748; margin-bottom: 8px;">
-                            ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
-                        </div>
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>ID:</strong> !${nodeId}
-                        </div>
-                        ${nodeData.short_name && nodeData.long_name !== nodeData.short_name ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Short Name:</strong> ${nodeData.short_name}
-                        </div>` : ''}
-                        ${nodeData.hardware_model ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Hardware:</strong> ${nodeData.hardware_model}
-                        </div>` : ''}
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Position:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}
-                        </div>
-                        ${nodeData.altitude ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Altitude:</strong> ${nodeData.altitude}m
-                        </div>` : ''}
-                        ${nodeData.battery_level ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Battery:</strong> ${nodeData.battery_level}%
-                        </div>` : ''}
-                        ${nodeData.voltage ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>Voltage:</strong> ${nodeData.voltage}V
-                        </div>` : ''}
-                        ${nodeData.snr ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>SNR:</strong> ${nodeData.snr} dB
-                        </div>` : ''}
-                        ${nodeData.rssi ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                            <strong>RSSI:</strong> ${nodeData.rssi} dBm
-                        </div>` : ''}
-                        ${nodeData.last_seen ? `
-                        <div style="font-size: 12px; color: #4a5568; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0;">
-                            <strong>Last seen:</strong> ${new Date(nodeData.last_seen).toLocaleString()}
-                        </div>` : ''}
-                    </div>
-                `;
-                
-                // Create hover tooltip content (more concise)
-                const tooltipContent = `
-                    <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 250px;">
-                        <div style="font-weight: bold; margin-bottom: 4px;">
-                            ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
-                        </div>
-                        <div style="color: #666; margin-bottom: 2px;">ID: !${nodeId}</div>
-                        ${nodeData.hardware_model ? `<div style="color: #666; margin-bottom: 2px;">${nodeData.hardware_model}</div>` : ''}
-                        ${nodeData.battery_level ? `<div style="color: #666; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
-                        ${nodeData.last_seen ? `<div style="color: #666; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
-                    </div>
-                `;
-                
-                // Bind popup (click to open)
-                marker.bindPopup(popupContent);
-                
-                // Bind tooltip (hover to show)
-                marker.bindTooltip(tooltipContent, {
-                    permanent: false,
-                    direction: 'top',
-                    offset: [0, -10],
-                    opacity: 0.9,
-                    className: 'custom-tooltip'
-                });
+                marker.bindPopup(`
+                    <b>${nodeData.long_name || nodeData.short_name || 'Unknown'}</b><br>
+                    ID: ${nodeId}<br>
+                    ${nodeData.battery_level ? `Battery: ${nodeData.battery_level}%<br>` : ''}
+                    ${nodeData.last_seen ? `Last seen: ${new Date(nodeData.last_seen).toLocaleString()}` : ''}
+                `);
                 
                 // Add click event to focus on node in graph
                 marker.on('click', function() {
                     focusOnNodeInGraph(nodeId);
-                });
-                
-                // Add hover effects
-                marker.on('mouseover', function(e) {
-                    this.setStyle({
-                        radius: 10,
-                        weight: 3,
-                        fillOpacity: 1
-                    });
-                });
-                
-                marker.on('mouseout', function(e) {
-                    this.setStyle({
-                        radius: 8,
-                        weight: 2,
-                        fillOpacity: 0.8
-                    });
                 });
                 
                 mapMarkers[nodeId] = marker;
