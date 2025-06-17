@@ -372,10 +372,6 @@ def on_message(client, userdata, msg):
         if to_node != "ffffffff":  # Don't track broadcast address as a node
             ensure_node_exists(to_node)
         
-        # Update connection tracking
-        if from_node != to_node and to_node != "ffffffff":  # Exclude broadcasts to self
-            db.update_connection(from_node, to_node, packet_data.get('rx_snr'), packet_data.get('rx_rssi'))
-        
         # Emit real-time updates if Flask app is available
         try:
             with app.app_context():
@@ -383,6 +379,25 @@ def on_message(client, userdata, msg):
                     app.emit_packet_update(packet_data)
         except Exception as e:
             print(f"[⚠] Failed to emit packet update: {e}")
+            
+        # Emit connection updates for packets with valid SNR/RSSI
+        if (from_node != to_node and to_node != "ffffffff" and 
+            packet_data.get('rx_snr') and packet_data.get('rx_rssi') and
+            packet_data.get('rx_snr') != 0 and packet_data.get('rx_rssi') != 0):
+            try:
+                with app.app_context():
+                    if hasattr(app, 'emit_connection_update'):
+                        connection_data = {
+                            'from_node': from_node,
+                            'to_node': to_node,
+                            'packet_count': 1,  # This will be aggregated by the frontend
+                            'avg_snr': packet_data.get('rx_snr'),
+                            'avg_rssi': packet_data.get('rx_rssi'),
+                            'last_seen': packet_data.get('timestamp')
+                        }
+                        app.emit_connection_update(connection_data)
+            except Exception as e:
+                print(f"[⚠] Failed to emit connection update: {e}")
 
     except DecodeError as e:
         print(f"[⚠] Failed to parse Data: {e}")
@@ -483,31 +498,13 @@ def process_decoded_payload(decoded, from_node, to_node, packet_data):
                     print(f"[⚠] Failed to emit node update: {e}")
         
         elif payload_type == 'neighbor_info':
-            # Process neighbor information to create connections
+            # Process neighbor information - just ensure nodes exist, connections will be derived from actual packets
             neighbors = decoded.get('neighbors', [])
             for neighbor in neighbors:
                 neighbor_id = f"{neighbor.get('node_id'):08x}"
-                snr = neighbor.get('snr')
                 
                 # Ensure neighbor node exists
                 ensure_node_exists(neighbor_id)
-                
-                db.update_connection(from_node, neighbor_id, snr=snr)
-                
-                # Emit connection update
-                try:
-                    with app.app_context():
-                        if hasattr(app, 'emit_connection_update'):
-                            connection_data = {
-                                'from_node': from_node,
-                                'to_node': neighbor_id,
-                                'last_seen': datetime.now().isoformat(),
-                                'packet_count': 1,
-                                'avg_snr': snr
-                            }
-                            app.emit_connection_update(connection_data)
-                except Exception as e:
-                    print(f"[⚠] Failed to emit connection update: {e}")
         
         elif payload_type == 'map_report':
             # Update comprehensive node info from map report

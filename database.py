@@ -53,18 +53,8 @@ class MeshtasticDB:
                 )
             ''')
             
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS connections (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    from_node TEXT,
-                    to_node TEXT,
-                    last_seen TIMESTAMP,
-                    packet_count INTEGER DEFAULT 1,
-                    avg_snr REAL,
-                    avg_rssi REAL,
-                    UNIQUE(from_node, to_node)
-                )
-            ''')
+            # Drop old connections table if it exists (migration)
+            conn.execute('DROP TABLE IF EXISTS connections')
             
             conn.commit()
     
@@ -159,37 +149,6 @@ class MeshtasticDB:
                 ))
                 conn.commit()
     
-    def update_connection(self, from_node, to_node, snr=None, rssi=None):
-        """Update connection between nodes"""
-        with self.lock:
-            with sqlite3.connect(self.db_path) as conn:
-                # Check if connection exists
-                result = conn.execute('''
-                    SELECT packet_count, avg_snr, avg_rssi FROM connections 
-                    WHERE from_node = ? AND to_node = ?
-                ''', (from_node, to_node)).fetchone()
-                
-                if result:
-                    # Update existing connection
-                    count, avg_snr, avg_rssi = result
-                    new_count = count + 1
-                    new_avg_snr = ((avg_snr or 0) * count + (snr or 0)) / new_count if snr else avg_snr
-                    new_avg_rssi = ((avg_rssi or 0) * count + (rssi or 0)) / new_count if rssi else avg_rssi
-                    
-                    conn.execute('''
-                        UPDATE connections SET 
-                        last_seen = ?, packet_count = ?, avg_snr = ?, avg_rssi = ?
-                        WHERE from_node = ? AND to_node = ?
-                    ''', (datetime.now(), new_count, new_avg_snr, new_avg_rssi, from_node, to_node))
-                else:
-                    # Insert new connection
-                    conn.execute('''
-                        INSERT INTO connections (from_node, to_node, last_seen, avg_snr, avg_rssi)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (from_node, to_node, datetime.now(), snr, rssi))
-                
-                conn.commit()
-    
     def get_nodes(self):
         """Get all nodes"""
         with sqlite3.connect(self.db_path) as conn:
@@ -210,12 +169,27 @@ class MeshtasticDB:
             ''').fetchall()]
     
     def get_connections(self):
-        """Get all connections"""
+        """Get connections derived from packets with valid SNR/RSSI"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             return [dict(row) for row in conn.execute('''
-                SELECT * FROM connections 
-                WHERE datetime(last_seen) > datetime('now', '-1 hour')
+                SELECT 
+                    from_node,
+                    to_node,
+                    COUNT(*) as packet_count,
+                    AVG(rx_snr) as avg_snr,
+                    AVG(rx_rssi) as avg_rssi,
+                    MAX(timestamp) as last_seen
+                FROM packets 
+                WHERE rx_snr IS NOT NULL 
+                    AND rx_rssi IS NOT NULL 
+                    AND rx_snr != 0 
+                    AND rx_rssi != 0
+                    AND from_node != to_node
+                    AND to_node != 'ffffffff'
+                    AND datetime(timestamp) > datetime('now', '-1 hour')
+                GROUP BY from_node, to_node
+                HAVING packet_count >= 1
                 ORDER BY last_seen DESC
             ''').fetchall()]
     
