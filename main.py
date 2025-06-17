@@ -1,4 +1,5 @@
 import os
+import sys
 from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
 import json
@@ -6,9 +7,10 @@ import struct
 from base64 import b64decode
 from Crypto.Cipher import AES
 
+
+
 from google.protobuf.message import DecodeError
-from meshtastic import mesh_pb2, portnums_pb2
-from meshtastic.protobuf import mesh_pb2 as mesh_pb2_alt
+from meshtastic import mesh_pb2, portnums_pb2, telemetry_pb2, mqtt_pb2
 
 # === Configuration ===
 load_dotenv()
@@ -18,6 +20,7 @@ MQTT_TOPIC = os.getenv("MQTT_TOPIC")
 MQTT_USERNAME = os.getenv("MQTT_USERNAME")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 MQTT_KEEPALIVE = int(os.getenv("MQTT_KEEPALIVE", 60))
+MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "meshtastic_decoder")
 
 # === Decoder for known port payloads ===
 def decode_port_payload(portnum, payload_bytes):
@@ -31,7 +34,6 @@ def decode_port_payload(portnum, payload_bytes):
             return {"type": "text_message", "message": payload_bytes.decode("utf-8", errors="replace")}
 
         elif portnum == 3 or portnum == portnums_pb2.PortNum.POSITION_APP:
-            from meshtastic.protobuf import mesh_pb2
             pos = mesh_pb2.Position()
             pos.ParseFromString(payload_bytes)
             return {
@@ -44,7 +46,6 @@ def decode_port_payload(portnum, payload_bytes):
             }
 
         elif portnum == 4 or portnum == portnums_pb2.PortNum.NODEINFO_APP:
-            from meshtastic.protobuf import mesh_pb2
             user = mesh_pb2.User()
             user.ParseFromString(payload_bytes)
             return {
@@ -58,7 +59,6 @@ def decode_port_payload(portnum, payload_bytes):
             }
 
         elif portnum == 8 or portnum == portnums_pb2.PortNum.WAYPOINT_APP:
-            from meshtastic.protobuf import mesh_pb2
             waypoint = mesh_pb2.Waypoint()
             waypoint.ParseFromString(payload_bytes)
             return {
@@ -74,8 +74,7 @@ def decode_port_payload(portnum, payload_bytes):
             }
 
         elif portnum == 67 or portnum == portnums_pb2.PortNum.TELEMETRY_APP:
-            from meshtastic.protobuf import mesh_pb2
-            tel = mesh_pb2.Telemetry()
+            tel = telemetry_pb2.Telemetry()
             tel.ParseFromString(payload_bytes)
             
             result = {"type": "telemetry"}
@@ -120,7 +119,6 @@ def decode_port_payload(portnum, payload_bytes):
             return result
 
         elif portnum == 70 or portnum == portnums_pb2.PortNum.TRACEROUTE_APP:
-            from meshtastic.protobuf import mesh_pb2
             route = mesh_pb2.RouteDiscovery()
             route.ParseFromString(payload_bytes)
             return {
@@ -132,7 +130,6 @@ def decode_port_payload(portnum, payload_bytes):
             }
 
         elif portnum == 71 or portnum == portnums_pb2.PortNum.NEIGHBORINFO_APP:
-            from meshtastic.protobuf import mesh_pb2
             neighbor_info = mesh_pb2.NeighborInfo()
             neighbor_info.ParseFromString(payload_bytes)
             return {
@@ -148,8 +145,7 @@ def decode_port_payload(portnum, payload_bytes):
             }
 
         elif portnum == 73 or portnum == portnums_pb2.PortNum.MAP_REPORT_APP:
-            from meshtastic.protobuf import mesh_pb2
-            map_report = mesh_pb2.MapReport()
+            map_report = mqtt_pb2.MapReport()
             map_report.ParseFromString(payload_bytes)
             return {
                 "type": "map_report",
@@ -231,40 +227,91 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     print(f"\n[📨] Topic: {msg.topic}")
     try:
-        # Parse as Data protobuf (this is what the MQTT broker actually sends)
-        data_msg = mesh_pb2.Data()
-        data_msg.ParseFromString(msg.payload)
+        # Parse as ServiceEnvelope (this is what the MQTT broker actually sends)
+        envelope = mqtt_pb2.ServiceEnvelope()
+        envelope.ParseFromString(msg.payload)
         
-        print("[📦] Data message:")
-        print(data_msg)
+        print(f"[📦] ServiceEnvelope channel_id: {envelope.channel_id}")
+        print(f"[📦] ServiceEnvelope gateway_id: {envelope.gateway_id}")
+        
+        if not envelope.packet:
+            print("[❌] No packet in envelope")
+            return
+            
+        packet = envelope.packet
+        print(f"[📦] MeshPacket from: {getattr(packet, 'from'):08x}, to: {packet.to:08x}, id: {packet.id:08x}")
+        print(f"[📦] Channel: {packet.channel}, hop_limit: {packet.hop_limit}")
+        
+        # Check if packet has encrypted data
+        if hasattr(packet, 'encrypted') and packet.encrypted:
+            print(f"[🔒] Found encrypted field with {len(packet.encrypted)} bytes")
+            
+            # Try to decrypt with default key
+            decrypted_bytes = decrypt_payload(packet.encrypted, packet.id, getattr(packet, 'from'))
+            if decrypted_bytes:
+                print(f"[�] Successfully decrypted {len(decrypted_bytes)} bytes")
+                
+                # Parse decrypted data as Data protobuf
+                try:
+                    data_msg = mesh_pb2.Data()
+                    data_msg.ParseFromString(decrypted_bytes)
+                    print("[✅] Decrypted data parsed successfully")
+                except Exception as e:
+                    print(f"[❌] Failed to parse decrypted data: {e}")
+                    return
+            else:
+                print("[❌] Failed to decrypt")
+                return
+        elif hasattr(packet, 'decoded') and packet.decoded:
+            # Unencrypted data
+            data_msg = packet.decoded
+            print("[�] Found unencrypted decoded data")
+        else:
+            print("[❌] No encrypted or decoded data found in packet")
+            return
+        
+        # Show all fields for debugging
+        print("[📦] Data message fields:", [field.name for field, _ in data_msg.ListFields()])
+        for field, value in data_msg.ListFields():
+            if field.name == 'payload' and isinstance(value, bytes):
+                try:
+                    text_value = value.decode('utf-8', errors='replace')
+                    print(f"[📄] {field.name}: '{text_value}' (text)")
+                except:
+                    print(f"[📄] {field.name}: {value.hex(' ')} (hex, {len(value)} bytes)")
+            else:
+                print(f"[📄] {field.name}: {value}")
         
         # Process the data if it has a portnum and payload
         if hasattr(data_msg, 'portnum') and hasattr(data_msg, 'payload'):
             portnum = data_msg.portnum
             payload = data_msg.payload
-            print(f"[ℹ️] PortNum: {portnum}")
+            print(f"[ℹ️] PortNum: {portnum} (0x{portnum:x})")
+            
+            # Show some statistics
+            portnum_names = {
+                0: "UNKNOWN_APP",
+                1: "TEXT_MESSAGE_APP", 
+                3: "POSITION_APP",
+                4: "NODEINFO_APP",
+                8: "WAYPOINT_APP", 
+                67: "TELEMETRY_APP",
+                70: "TRACEROUTE_APP",
+                71: "NEIGHBORINFO_APP",
+                73: "MAP_REPORT_APP"
+            }
+            portnum_name = portnum_names.get(portnum, f"UNKNOWN_{portnum}")
+            print(f"[ℹ️] App: {portnum_name}")
+            
             if payload:
                 decoded = decode_port_payload(portnum, payload)
                 print("[✅] Decoded payload:")
                 print(json.dumps(decoded, indent=2))
             else:
-                print("[ℹ️] No payload to decode")
+                print("[❌] No payload in data message")
         else:
-            print("[ℹ️] Data message structure:")
-            fields = [field.name for field, _ in data_msg.ListFields()]
-            print(f"[📋] Available fields: {fields}")
-            
-            # Print all field values
-            for field, value in data_msg.ListFields():
-                if field.name == 'payload' and isinstance(value, bytes):
-                    try:
-                        # Try to decode as text
-                        text_value = value.decode('utf-8', errors='replace')
-                        print(f"[📄] {field.name}: '{text_value}' (text)")
-                    except:
-                        print(f"[📄] {field.name}: {value.hex(' ')} (hex)")
-                else:
-                    print(f"[📄] {field.name}: {value}")
+            print("[ℹ️] Missing portnum or payload fields")
+            print(f"[�] Available fields: {[field.name for field, _ in data_msg.ListFields()]}")
 
     except DecodeError as e:
         print(f"[⚠] Failed to parse Data: {e}")
@@ -276,12 +323,12 @@ def on_message(client, userdata, msg):
 
 # === Main ===
 def main():
-    client = mqtt.Client()
+    client = mqtt.Client(client_id=MQTT_CLIENT_ID)
     client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     client.on_connect = on_connect
     client.on_message = on_message
 
-    print(f"[📡] Connecting to {MQTT_BROKER}:{MQTT_PORT} ...")
+    print(f"[📡] Connecting to {MQTT_BROKER}:{MQTT_PORT} with client ID '{MQTT_CLIENT_ID}' ...")
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, MQTT_KEEPALIVE)
         client.loop_forever()
