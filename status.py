@@ -5,6 +5,7 @@ Database status script - shows current network state
 
 from database import MeshtasticDB
 import json
+import os
 from datetime import datetime, timedelta
 
 def show_database_status():
@@ -84,7 +85,11 @@ def show_database_status():
         print(f"  📨 [{timestamp[:19]}] {from_short} → {to_short}: {ptype}{content}")
     
     print("\n" + "=" * 50)
-    print("📡 Dashboard: http://localhost:5000")
+    host = os.getenv('HOST', '0.0.0.0')
+    port = os.getenv('PORT', '5000')
+    # Show localhost for convenience when binding to all interfaces
+    display_host = 'localhost' if host == '0.0.0.0' else host
+    print(f"📡 Dashboard: http://{display_host}:{port}")
     print("🔄 Data updates automatically as packets arrive")
 
 if __name__ == "__main__":

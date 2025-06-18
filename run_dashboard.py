@@ -27,9 +27,11 @@ def run_mqtt_decoder():
 def run_flask_app():
     """Run the Flask web server"""
     from app import app, socketio
+    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv('PORT', 5000))
     try:
-        print("[🚀] Starting Flask web server on http://0.0.0.0:5000")
-        socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
+        print(f"[🚀] Starting Flask web server on http://{host}:{port}")
+        socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
     except Exception as e:
         print(f"[❌] Flask server error: {e}")
         import traceback
@@ -53,7 +55,11 @@ def main():
     
     print(f"[ℹ️] MQTT Broker: {os.getenv('MQTT_BROKER')}")
     print(f"[ℹ️] MQTT Topic: {os.getenv('MQTT_TOPIC')}")
-    print(f"[ℹ️] Web Dashboard: http://localhost:5000")
+    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv('PORT', 5000))
+    # Show localhost for convenience but note the actual host
+    display_host = 'localhost' if host == '0.0.0.0' else host
+    print(f"[ℹ️] Web Dashboard: http://{display_host}:{port}")
     print()
     
     # Start MQTT decoder in a separate thread

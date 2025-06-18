@@ -62,7 +62,33 @@ uv run python create_demo_data.py
 uv run python run_dashboard.py
 ```
 
-The dashboard will be available at http://localhost:5000
+The dashboard will be available at http://localhost:5000 (or the port specified by the `PORT` environment variable)
+
+## Configuration
+
+### Environment Variables
+
+The application supports the following environment variables:
+
+- `MQTT_BROKER` - MQTT broker hostname (required)
+- `MQTT_USERNAME` - MQTT username (required)  
+- `MQTT_PASSWORD` - MQTT password (required)
+- `MQTT_TOPIC` - MQTT topic to subscribe to (required)
+- `HOST` - Host/IP address to bind the web server to (optional, defaults to 0.0.0.0)
+- `PORT` - Port for the web dashboard (optional, defaults to 5000)
+
+You can set the host and port by adding them to your `.env` file:
+```
+HOST=127.0.0.1
+PORT=8080
+```
+
+Or by setting them when running the application:
+```bash
+HOST=127.0.0.1 PORT=8080 uv run python run_dashboard.py
+```
+
+**Note:** Using `HOST=0.0.0.0` (default) binds to all network interfaces, making the dashboard accessible from other devices on your network. Use `HOST=127.0.0.1` or `HOST=localhost` to restrict access to the local machine only.
 
 ## Architecture
 

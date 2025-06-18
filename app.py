@@ -131,4 +131,6 @@ app.emit_packet_update = emit_packet_update
 app.db = db
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv('PORT', 5000))
+    socketio.run(app, host=host, port=port, debug=True)

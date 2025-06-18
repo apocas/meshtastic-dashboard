@@ -19,7 +19,15 @@ fi
 
 # Start the dashboard
 echo "🚀 Starting Meshtastic Dashboard..."
-echo "📍 Dashboard will be available at: http://localhost:5000"
+HOST=${HOST:-0.0.0.0}
+PORT=${PORT:-5000}
+# Show localhost for convenience when binding to all interfaces
+if [ "$HOST" = "0.0.0.0" ]; then
+    DISPLAY_HOST="localhost"
+else
+    DISPLAY_HOST="$HOST"
+fi
+echo "📍 Dashboard will be available at: http://$DISPLAY_HOST:$PORT"
 echo "🛑 Press Ctrl+C to stop"
 echo ""
 
