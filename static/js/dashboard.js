@@ -141,7 +141,7 @@ function initializeNetwork() {
     network.on('click', function(params) {
         if (params.nodes.length > 0) {
             const nodeId = params.nodes[0];
-            highlightNode(nodeId);
+            showNodePopup(nodeId);
         }
     });
 }
@@ -1000,4 +1000,198 @@ function addPositionQualityLegend() {
     };
     
     legend.addTo(map);
+}
+
+// Function to show node popup with detailed information
+function showNodePopup(nodeId) {
+    // Get node data
+    const nodeData = nodes.get(nodeId);
+    if (!nodeData) {
+        console.error('Node not found:', nodeId);
+        return;
+    }
+    
+    // Get full node details from nodes collection or fetch if needed
+    fetch(`/api/search/node/${nodeId}`)
+        .then(response => response.json())
+        .then(fullNodeData => {
+            const hasPosition = fullNodeData.latitude != null && fullNodeData.longitude != null && 
+                               fullNodeData.latitude !== '' && fullNodeData.longitude !== '' &&
+                               !isNaN(fullNodeData.latitude) && !isNaN(fullNodeData.longitude);
+            
+            const positionQuality = fullNodeData.position_quality || 'unknown';
+            const needsTriangulation = !hasPosition || (hasPosition && positionQuality !== 'confirmed');
+            
+            // Create popup content
+            const modalTitle = document.getElementById('nodeModalTitle');
+            const modalContent = document.getElementById('nodeModalContent');
+            
+            modalTitle.textContent = fullNodeData.long_name || fullNodeData.short_name || 'Unknown Node';
+            
+            modalContent.innerHTML = `
+                <div style="font-family: 'Segoe UI', sans-serif;">
+                    <div style="margin-bottom: 16px;">
+                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                            <strong>Node ID:</strong> !${nodeId}
+                        </div>
+                        ${fullNodeData.short_name && fullNodeData.long_name !== fullNodeData.short_name ? `
+                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                            <strong>Short Name:</strong> ${fullNodeData.short_name}
+                        </div>` : ''}
+                        ${fullNodeData.hardware_model ? `
+                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                            <strong>Hardware:</strong> ${fullNodeData.hardware_model}
+                        </div>` : ''}
+                    </div>
+                    
+                    ${hasPosition ? `
+                    <div style="margin-bottom: 16px; padding: 12px; background-color: rgba(72, 187, 120, 0.1); border-radius: 6px; border-left: 4px solid #48bb78;">
+                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                            <strong>Position:</strong> ${fullNodeData.latitude.toFixed(6)}, ${fullNodeData.longitude.toFixed(6)}
+                        </div>
+                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                            <strong>Quality:</strong> 
+                            <span style="color: ${positionQuality === 'confirmed' ? '#68d391' : positionQuality === 'triangulated' ? '#ecc94b' : positionQuality === 'estimated' ? '#fc8181' : '#a0aec0'};">
+                                ${positionQuality === 'confirmed' ? 'GPS Confirmed' : 
+                                  positionQuality === 'triangulated' ? 'Triangulated (3+ points)' : 
+                                  positionQuality === 'estimated' ? 'Estimated (2 points)' : 
+                                  'Unknown'}
+                            </span>
+                        </div>
+                        ${fullNodeData.altitude ? `
+                        <div style="font-size: 14px; color: #e2e8f0;">
+                            <strong>Altitude:</strong> ${fullNodeData.altitude}m
+                        </div>` : ''}
+                    </div>` : `
+                    <div style="margin-bottom: 16px; padding: 12px; background-color: rgba(237, 137, 54, 0.1); border-radius: 6px; border-left: 4px solid #ed8936;">
+                        <div style="font-size: 14px; color: #fbd38d;">
+                            <strong>⚠️ No Position Data</strong>
+                        </div>
+                        <div style="font-size: 12px; color: #e2e8f0; margin-top: 4px;">
+                            This node's location is unknown
+                        </div>
+                    </div>`}
+                    
+                    <div style="margin-bottom: 16px;">
+                        ${fullNodeData.battery_level ? `
+                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                            <strong>Battery:</strong> ${fullNodeData.battery_level}%
+                        </div>` : ''}
+                        ${fullNodeData.voltage ? `
+                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                            <strong>Voltage:</strong> ${fullNodeData.voltage}V
+                        </div>` : ''}
+                        ${fullNodeData.snr ? `
+                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                            <strong>SNR:</strong> ${fullNodeData.snr} dB
+                        </div>` : ''}
+                        ${fullNodeData.rssi ? `
+                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                            <strong>RSSI:</strong> ${fullNodeData.rssi} dBm
+                        </div>` : ''}
+                    </div>
+                    
+                    ${fullNodeData.last_seen ? `
+                    <div style="margin-bottom: 16px; padding-top: 12px; border-top: 1px solid #4a5568;">
+                        <div style="font-size: 14px; color: #e2e8f0;">
+                            <strong>Last Seen:</strong> ${new Date(fullNodeData.last_seen).toLocaleString()}
+                        </div>
+                    </div>` : ''}
+                    
+                    ${needsTriangulation ? `
+                    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #4a5568;">
+                        <button 
+                            onclick="triangulateNode('${nodeId}')" 
+                            style="
+                                background-color: #ecc94b; 
+                                color: #1a202c; 
+                                border: none; 
+                                padding: 8px 16px; 
+                                border-radius: 4px; 
+                                cursor: pointer; 
+                                font-weight: 600;
+                                width: 100%;
+                                transition: background-color 0.2s;
+                            "
+                            onmouseover="this.style.backgroundColor='#d69e2e'"
+                            onmouseout="this.style.backgroundColor='#ecc94b'"
+                        >
+                            📍 Try to Triangulate Position
+                        </button>
+                    </div>` : ''}
+                </div>
+            `;
+            
+            // Show the modal
+            document.getElementById('nodeModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching node details:', error);
+            // Show basic info from network data
+            const modalTitle = document.getElementById('nodeModalTitle');
+            const modalContent = document.getElementById('nodeModalContent');
+            
+            modalTitle.textContent = nodeData.label || 'Unknown Node';
+            modalContent.innerHTML = `
+                <div style="font-family: 'Segoe UI', sans-serif;">
+                    <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                        <strong>Node ID:</strong> !${nodeId}
+                    </div>
+                    <div style="font-size: 14px; color: #fc8181; margin-top: 16px;">
+                        ⚠️ Could not load detailed node information
+                    </div>
+                </div>
+            `;
+            document.getElementById('nodeModal').style.display = 'block';
+        });
+}
+
+// Function to close node popup
+function closeNodeModal() {
+    document.getElementById('nodeModal').style.display = 'none';
+}
+
+// Function to triangulate a specific node
+function triangulateNode(nodeId) {
+    const button = event.target;
+    const originalText = button.textContent;
+    
+    button.disabled = true;
+    button.textContent = '⏳ Triangulating...';
+    button.style.backgroundColor = '#a0aec0';
+    button.style.cursor = 'not-allowed';
+    
+    // Make API call to manually triangulate this specific node
+    fetch(`/api/nodes/${nodeId}/triangulate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ Success!\n\n${data.message}\n\nQuality: ${data.result.quality}\nReference points: ${data.result.reference_points}`);
+            
+            // Close the modal and refresh the view
+            closeNodeModal();
+            
+            // Refresh nodes to show the updated position
+            setTimeout(() => {
+                loadNodes();
+            }, 500);
+        } else {
+            alert(`❌ Triangulation failed:\n\n${data.message}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error during triangulation:', error);
+        alert('❌ Error during triangulation: ' + error.message);
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.textContent = originalText;
+        button.style.backgroundColor = '#ecc94b';
+        button.style.cursor = 'pointer';
+    });
 }

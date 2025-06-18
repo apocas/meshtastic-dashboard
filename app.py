@@ -135,6 +135,34 @@ def get_node_neighbors(node_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/nodes/<node_id>/triangulate', methods=['POST'])
+def triangulate_single_node(node_id):
+    """API endpoint to manually trigger triangulation for a specific node"""
+    try:
+        # Remove ! prefix if present
+        clean_node_id = node_id.lstrip('!')
+        
+        result = db.triangulate_single_node(clean_node_id)
+        
+        if result:
+            # Emit node update to refresh the frontend
+            updated_node = db.get_node_by_id(clean_node_id)
+            if updated_node:
+                emit_node_update(updated_node)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Successfully triangulated position for node {clean_node_id}',
+                'result': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Could not triangulate position for node {clean_node_id}. Not enough positioned neighbors or other constraints not met.'
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 def emit_node_update(node_data):
     """Emit node update to connected clients"""
