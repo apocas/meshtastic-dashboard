@@ -165,8 +165,24 @@ def triangulate_single_node(node_id):
 
 
 def emit_node_update(node_data):
-    """Emit node update to connected clients"""
-    socketio.emit('node_update', node_data)
+    """Emit node update to connected clients - only send node_id for efficiency"""
+    # Handle different input formats
+    node_id = None
+    
+    if isinstance(node_data, str):
+        # node_data is just a node_id string
+        node_id = node_data
+    elif isinstance(node_data, dict):
+        # node_data is a dictionary with node_id field
+        node_id = node_data.get('node_id')
+    else:
+        # node_data is an object with node_id attribute
+        node_id = getattr(node_data, 'node_id', None)
+    
+    if node_id:
+        socketio.emit('node_update', {'node_id': node_id})
+    else:
+        print(f"Warning: emit_node_update called with invalid node_data: {node_data}")
 
 def emit_packet_update(packet_data):
     """Emit packet update to connected clients"""

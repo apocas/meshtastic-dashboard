@@ -160,12 +160,35 @@ function initializeWebSocket() {
     });
     
     socket.on('node_update', function(data) {
-        updateNode(data);
-        // Add node to pending updates for connection refresh
-        pendingConnectionUpdates.add(data.node_id);
-        // Debounce connection updates to avoid too many API calls
-        clearTimeout(window.connectionUpdateTimeout);
-        window.connectionUpdateTimeout = setTimeout(refreshPendingConnections, 500);
+        // New approach: data only contains node_id, fetch fresh data from API
+        const nodeId = data.node_id;
+        if (!nodeId) {
+            console.error('Received node_update without node_id:', data);
+            return;
+        }
+        
+        console.log('Node update received for:', nodeId);
+        
+        // Fetch fresh node data from the API
+        fetch(`/api/search/node/${nodeId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(nodeData => {
+                console.log('Fresh node data fetched for:', nodeId, nodeData);
+                updateNode(nodeData);
+                // Add node to pending updates for connection refresh
+                pendingConnectionUpdates.add(nodeId);
+                // Debounce connection updates to avoid too many API calls
+                clearTimeout(window.connectionUpdateTimeout);
+                window.connectionUpdateTimeout = setTimeout(refreshPendingConnections, 500);
+            })
+            .catch(error => {
+                console.error('Error fetching fresh node data for', nodeId, ':', error);
+            });
     });
     
     socket.on('packet_update', function(data) {
@@ -212,7 +235,7 @@ function ensureNodeExists(nodeId) {
         // Create placeholder node
         const placeholderNode = {
             id: nodeId,
-            label: nodeId.slice(-4), // Show last 4 characters
+            label: nodeId, // Show full node ID
             title: `Node ID: ${nodeId}\nStatus: Unknown`,
             color: {
                 border: '#a0aec0',
@@ -304,7 +327,7 @@ function updateNode(nodeData) {
         
         const networkNode = {
             id: nodeId,
-            label: decodedShortName || decodedLongName || nodeId.slice(-4) || 'Unknown',
+            label: nodeId,
             title: `${decodedLongName || 'Unknown'}\nID: ${nodeId}\nPosition Quality: ${nodeData.position_quality || 'unknown'}\nLast seen: ${nodeData.last_seen || 'Never'}`,
             color: nodeColor
         };
