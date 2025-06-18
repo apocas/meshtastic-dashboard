@@ -433,8 +433,11 @@ class MeshtasticDB:
     def _trilaterate(self, points):
         """Trilaterate position from multiple reference points
         
+        For 2 points: Use midpoint between the two positions
+        For 3+ points: Use geometric center (centroid) of all positions
+        
         Args:
-            points: List of dicts with keys: 'lat', 'lon', 'distance'
+            points: List of dicts with keys: 'lat', 'lon', 'distance' (distance is ignored)
         
         Returns:
             Dict with 'lat', 'lon' if successful, None if failed
@@ -444,8 +447,8 @@ class MeshtasticDB:
         
         if len(points) == 2:
             # For 2 points, return midpoint (less accurate)
-            lat1, lon1, d1 = points[0]['lat'], points[0]['lon'], points[0]['distance']
-            lat2, lon2, d2 = points[1]['lat'], points[1]['lon'], points[1]['distance']
+            lat1, lon1 = points[0]['lat'], points[0]['lon']
+            lat2, lon2 = points[1]['lat'], points[1]['lon']
             
             return {
                 'lat': (lat1 + lat2) / 2,
@@ -453,69 +456,18 @@ class MeshtasticDB:
                 'quality': 'estimated'
             }
         
-        # For 3+ points, use least squares triangulation
-        return self._least_squares_trilateration(points)
+        # For 3+ points, use geometric center (centroid) of all positions
+        total_lat = sum(point['lat'] for point in points)
+        total_lon = sum(point['lon'] for point in points)
+        count = len(points)
+        
+        return {
+            'lat': total_lat / count,
+            'lon': total_lon / count,
+            'quality': 'triangulated'
+        }
     
-    def _least_squares_trilateration(self, points):
-        """Least squares trilateration for 3+ reference points"""
-        if len(points) < 3:
-            return None
-        
-        # Convert to Cartesian coordinates (approximate for small areas)
-        # Use first point as origin
-        origin_lat, origin_lon = points[0]['lat'], points[0]['lon']
-        
-        # Convert lat/lon to local Cartesian (meters from origin)
-        cartesian_points = []
-        for point in points:
-            lat, lon = point['lat'], point['lon']
-            
-            # Approximate conversion (good for small areas)
-            x = (lon - origin_lon) * 111320 * math.cos(math.radians(origin_lat))
-            y = (lat - origin_lat) * 110540
-            
-            cartesian_points.append({
-                'x': x,
-                'y': y,
-                'distance': point['distance']
-            })
-        
-        # Solve using least squares (simplified version)
-        # For simplicity, we'll use the first 3 points for triangulation
-        p1, p2, p3 = cartesian_points[0], cartesian_points[1], cartesian_points[2]
-        
-        # Circle intersection method
-        try:
-            A = 2 * (p2['x'] - p1['x'])
-            B = 2 * (p2['y'] - p1['y'])
-            C = (p1['distance']**2 - p2['distance']**2 - p1['x']**2 + p2['x']**2 - p1['y']**2 + p2['y']**2)
-            
-            D = 2 * (p3['x'] - p2['x'])
-            E = 2 * (p3['y'] - p2['y'])
-            F = (p2['distance']**2 - p3['distance']**2 - p2['x']**2 + p3['x']**2 - p2['y']**2 + p3['y']**2)
-            
-            # Solve the system of equations
-            denominator = A * E - B * D
-            if abs(denominator) < 1e-10:
-                return None  # Points are collinear
-            
-            x = (C * E - F * B) / denominator
-            y = (A * F - D * C) / denominator
-            
-            # Convert back to lat/lon
-            result_lat = origin_lat + y / 110540
-            result_lon = origin_lon + x / (111320 * math.cos(math.radians(origin_lat)))
-            
-            return {
-                'lat': result_lat,
-                'lon': result_lon,
-                'quality': 'triangulated'
-            }
-            
-        except (ZeroDivisionError, ValueError):
-            return None
-    
-    
+     
     def triangulate_single_node(self, node_id):
         """Attempt to triangulate position for a single node
         
