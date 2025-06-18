@@ -230,6 +230,10 @@ function ensureNodeExists(nodeId) {
 
 function updateNode(nodeData) {
     const nodeId = nodeData.node_id;
+    
+    // Debug logging for all node data to understand the issue
+    console.log('updateNode called for:', nodeId, nodeData);
+    
     const hasPosition = nodeData.latitude != null && nodeData.longitude != null && 
                        nodeData.latitude !== '' && nodeData.longitude !== '' &&
                        !isNaN(nodeData.latitude) && !isNaN(nodeData.longitude);
@@ -280,10 +284,28 @@ function updateNode(nodeData) {
     
     // Always update network graph node (show all nodes in graph)
     if (typeof vis !== 'undefined' && nodes) {
+        // Helper function to decode Unicode escape sequences
+        function decodeUnicodeEscapes(str) {
+            if (!str || typeof str !== 'string') return str;
+            try {
+                // Replace Unicode escape sequences with actual characters
+                // Handle both single and double backslash escapes
+                return str.replace(/\\u([0-9a-fA-F]{4})/g, (match, code) => {
+                    return String.fromCharCode(parseInt(code, 16));
+                });
+            } catch (e) {
+                return str; // Return original if decoding fails
+            }
+        }
+        
+        // Decode Unicode in names
+        const decodedShortName = decodeUnicodeEscapes(nodeData.short_name);
+        const decodedLongName = decodeUnicodeEscapes(nodeData.long_name);
+        
         const networkNode = {
             id: nodeId,
-            label: nodeData.short_name || nodeData.long_name || nodeId.slice(-4),
-            title: `${nodeData.long_name || 'Unknown'}\nID: ${nodeId}\nPosition Quality: ${nodeData.position_quality || 'unknown'}\nLast seen: ${nodeData.last_seen || 'Never'}`,
+            label: decodedShortName || decodedLongName || nodeId.slice(-4) || 'Unknown',
+            title: `${decodedLongName || 'Unknown'}\nID: ${nodeId}\nPosition Quality: ${nodeData.position_quality || 'unknown'}\nLast seen: ${nodeData.last_seen || 'Never'}`,
             color: nodeColor
         };
         
@@ -1015,6 +1037,24 @@ function showNodePopup(nodeId) {
     fetch(`/api/search/node/${nodeId}`)
         .then(response => response.json())
         .then(fullNodeData => {
+            // Helper function to decode Unicode escape sequences
+            function decodeUnicodeEscapes(str) {
+                if (!str || typeof str !== 'string') return str;
+                try {
+                    // Replace Unicode escape sequences with actual characters
+                    // Handle both single and double backslash escapes
+                    return str.replace(/\\u([0-9a-fA-F]{4})/g, (match, code) => {
+                        return String.fromCharCode(parseInt(code, 16));
+                    });
+                } catch (e) {
+                    return str; // Return original if decoding fails
+                }
+            }
+            
+            // Decode Unicode in names
+            fullNodeData.long_name = decodeUnicodeEscapes(fullNodeData.long_name);
+            fullNodeData.short_name = decodeUnicodeEscapes(fullNodeData.short_name);
+            
             const hasPosition = fullNodeData.latitude != null && fullNodeData.longitude != null && 
                                fullNodeData.latitude !== '' && fullNodeData.longitude !== '' &&
                                !isNaN(fullNodeData.latitude) && !isNaN(fullNodeData.longitude);
@@ -1032,7 +1072,7 @@ function showNodePopup(nodeId) {
                 <div style="font-family: 'Segoe UI', sans-serif;">
                     <div style="margin-bottom: 16px;">
                         <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
-                            <strong>Node ID:</strong> !${nodeId}
+                            <strong>Node ID:</strong> !${nodeId.replace(/^!+/, '')}
                         </div>
                         ${fullNodeData.short_name && fullNodeData.long_name !== fullNodeData.short_name ? `
                         <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
