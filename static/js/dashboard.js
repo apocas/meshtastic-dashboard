@@ -675,15 +675,19 @@ function updateConnection(connectionData) {
     const edgeId = `${connectionData.from_node}-${connectionData.to_node}`;
     
     // Ensure both nodes exist (create placeholders if needed)
-    ensureNodeExists(connectionData.from_node);
-    ensureNodeExists(connectionData.to_node);
+    // Remove leading "!" if present
+    const fromNodeId = connectionData.from_node.startsWith('!') ? connectionData.from_node.substring(1) : connectionData.from_node;
+    const toNodeId = connectionData.to_node.startsWith('!') ? connectionData.to_node.substring(1) : connectionData.to_node;
+    
+    ensureNodeExists(fromNodeId);
+    ensureNodeExists(toNodeId);
     
     // Update network graph edge (only if vis.js is available)
     if (typeof vis !== 'undefined' && edges) {
         const edge = {
             id: edgeId,
-            from: connectionData.from_node,
-            to: connectionData.to_node,
+            from: fromNodeId,
+            to: toNodeId,
             label: `${connectionData.packet_count}`,
             title: `Packets: ${connectionData.packet_count}\nAvg SNR: ${connectionData.avg_snr?.toFixed(1) || 'N/A'}\nAvg RSSI: ${connectionData.avg_rssi || 'N/A'}`
         };
@@ -696,8 +700,8 @@ function updateConnection(connectionData) {
     }
     
     // Update map connection line
-    const fromMarker = mapMarkers[connectionData.from_node];
-    const toMarker = mapMarkers[connectionData.to_node];
+    const fromMarker = mapMarkers[fromNodeId];
+    const toMarker = mapMarkers[toNodeId];
     
     if (fromMarker && toMarker) {
         const lineId = edgeId;
@@ -716,7 +720,7 @@ function updateConnection(connectionData) {
         }).addTo(map);
         
         line.bindPopup(`
-            Connection: ${connectionData.from_node.slice(-4)} → ${connectionData.to_node.slice(-4)}<br>
+            Connection: ${fromNodeId} → ${toNodeId}<br>
             Packets: ${connectionData.packet_count}<br>
             Avg SNR: ${connectionData.avg_snr?.toFixed(1) || 'N/A'}<br>
             Last seen: ${new Date(connectionData.last_seen).toLocaleString()}

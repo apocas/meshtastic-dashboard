@@ -1,0 +1,30 @@
+{
+  "version": "0.1.0",
+  "configurations": [
+    {
+      "name": "Python: Main File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "run_dashboard.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "args": [],
+      "purpose": [
+        "debug-in-terminal"
+      ],
+    },
+    {
+      "name": "Python: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${fileDirname}",
+      "args": [],
+      "purpose": [
+        "debug-in-terminal"
+      ]
+    }
+  ]
+}
