@@ -89,12 +89,12 @@ def get_stats():
         nodes = db.get_nodes()
         positioned_nodes = db.get_nodes_with_position()
         connections = db.get_connections()
-        packets = db.get_recent_packets(1000)
+        total_packets = db.get_total_packet_count()
         
         stats = {
             'total_nodes': len(nodes),
             'active_connections': len(connections),
-            'recent_packets': len(packets),
+            'recent_packets': total_packets,
             'nodes_with_position': len(positioned_nodes)
         }
         return jsonify(stats)

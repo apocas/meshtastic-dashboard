@@ -234,3 +234,8 @@ class MeshtasticDB:
                 AND timestamp >= datetime('now', '-{} hours')
                 ORDER BY timestamp DESC
             '''.format(hours), (node_id, node_id, node_id)).fetchall()]
+    
+    def get_total_packet_count(self):
+        """Get total count of all packets in the database"""
+        with sqlite3.connect(self.db_path) as conn:
+            return conn.execute('SELECT COUNT(*) FROM packets').fetchone()[0]
