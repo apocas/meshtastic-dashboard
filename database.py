@@ -193,7 +193,7 @@ class MeshtasticDB:
                     AND rx_rssi != 0
                     AND from_node != to_node
                     AND to_node != 'ffffffff'
-                    AND datetime(timestamp) > datetime('now', '-24 hours')
+                    AND datetime(timestamp) > datetime('now', '-48 hours')
                 GROUP BY from_node, 
                     CASE 
                         WHEN gateway_id IS NOT NULL 

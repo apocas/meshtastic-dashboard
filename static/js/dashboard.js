@@ -3,6 +3,7 @@ let map, network, socket;
 let nodes, edges;
 let mapMarkers = {};
 let connectionLines = {};
+let pendingConnectionUpdates = new Set(); // Track nodes that need connection updates
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -157,10 +158,11 @@ function initializeWebSocket() {
     
     socket.on('node_update', function(data) {
         updateNode(data);
-    });
-    
-    socket.on('connection_update', function(data) {
-        updateConnection(data);
+        // Add node to pending updates for connection refresh
+        pendingConnectionUpdates.add(data.node_id);
+        // Debounce connection updates to avoid too many API calls
+        clearTimeout(window.connectionUpdateTimeout);
+        window.connectionUpdateTimeout = setTimeout(refreshPendingConnections, 500);
     });
     
     socket.on('packet_update', function(data) {
@@ -863,4 +865,21 @@ function highlightSearchedNode(nodeId) {
             });
         }
     }
+}
+
+function refreshPendingConnections() {
+    if (pendingConnectionUpdates.size === 0) return;
+    
+    const nodeIds = Array.from(pendingConnectionUpdates).join(',');
+    console.log('Refreshing connections for nodes:', nodeIds);
+    pendingConnectionUpdates.clear();
+    
+    // Fetch connections for the updated nodes
+    fetch(`/api/connections/nodes/${nodeIds}`)
+        .then(response => response.json())
+        .then(connections => {
+            console.log(`Found ${connections.length} connections for nodes ${nodeIds}`);
+            connections.forEach(connection => updateConnection(connection));
+        })
+        .catch(error => console.error('Error fetching connections for nodes:', error));
 }

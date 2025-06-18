@@ -101,13 +101,29 @@ def get_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/connections/nodes/<node_ids>')
+def get_connections_for_nodes(node_ids):
+    """API endpoint to get connections involving specific nodes"""
+    try:
+        # Parse comma-separated node IDs
+        node_list = [node_id.strip() for node_id in node_ids.split(',') if node_id.strip()]
+        if not node_list:
+            return jsonify([])
+        
+        # Get all connections and filter for the specified nodes
+        all_connections = db.get_connections()
+        filtered_connections = [
+            conn for conn in all_connections 
+            if conn.get('from_node') in node_list or conn.get('to_node') in node_list
+        ]
+        
+        return jsonify(filtered_connections)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 def emit_node_update(node_data):
     """Emit node update to connected clients"""
     socketio.emit('node_update', node_data)
-
-def emit_connection_update(connection_data):
-    """Emit connection update to connected clients"""
-    socketio.emit('connection_update', connection_data)
 
 def emit_packet_update(packet_data):
     """Emit packet update to connected clients"""
@@ -126,7 +142,6 @@ def handle_disconnect():
 
 # Make functions available globally for the MQTT processor
 app.emit_node_update = emit_node_update
-app.emit_connection_update = emit_connection_update
 app.emit_packet_update = emit_packet_update
 app.db = db
 
