@@ -142,6 +142,8 @@ function initializeNetwork() {
         if (params.nodes.length > 0) {
             const nodeId = params.nodes[0];
             showNodePopup(nodeId);
+            // Also focus the node on the map if it has a position
+            focusOnNodeInMap(nodeId);
         }
     });
 }
@@ -667,6 +669,24 @@ function focusOnNodeInGraph(nodeId) {
             
             // Select the node to highlight it
             network.selectNodes([nodeId]);
+        }
+    }
+}
+
+function focusOnNodeInMap(nodeId) {
+    // Focus on node in map view without opening popup
+    if (mapMarkers[nodeId]) {
+        map.setView(mapMarkers[nodeId].getLatLng(), 14);
+        // Briefly highlight the marker
+        const marker = mapMarkers[nodeId];
+        const originalIcon = marker.getIcon();
+        
+        // Create a temporary highlighted version
+        if (marker._icon) {
+            marker._icon.style.filter = 'drop-shadow(0 0 10px #ffff00)';
+            setTimeout(() => {
+                marker._icon.style.filter = '';
+            }, 2000);
         }
     }
 }
