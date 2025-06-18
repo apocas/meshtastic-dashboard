@@ -168,11 +168,19 @@ class MeshtasticDB:
                 ORDER BY last_seen DESC
             ''').fetchall()]
     
-    def get_connections(self):
-        """Get connections derived from packets with valid SNR/RSSI"""
+    def get_connections(self, from_node=None, to_node=None, nodes=None):
+        """Get connections derived from packets with valid SNR/RSSI
+        
+        Args:
+            from_node: Optional filter for specific from_node
+            to_node: Optional filter for specific to_node  
+            nodes: Optional list of nodes to filter connections involving any of them
+        """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            return [dict(row) for row in conn.execute('''
+            
+            # Build the base query
+            base_query = '''
                 SELECT 
                     from_node,
                     CASE 
@@ -194,6 +202,35 @@ class MeshtasticDB:
                     AND from_node != to_node
                     AND to_node != 'ffffffff'
                     AND datetime(timestamp) > datetime('now', '-48 hours')
+            '''
+            
+            # Add optional filters
+            query_params = []
+            
+            if nodes is not None and len(nodes) > 0:
+                # Filter for connections involving any of the specified nodes
+                placeholders = ','.join(['?' for _ in nodes])
+                base_query += f''' AND (
+                    from_node IN ({placeholders}) OR 
+                    to_node IN ({placeholders}) OR
+                    (gateway_id IS NOT NULL AND gateway_id IN ({placeholders}))
+                )'''
+                query_params.extend(nodes * 3)  # Add nodes list 3 times for the 3 conditions
+            else:
+                # Use individual node filters if nodes list is not provided
+                if from_node is not None:
+                    base_query += ' AND from_node = ?'
+                    query_params.append(from_node)
+                
+                if to_node is not None:
+                    base_query += ''' AND (
+                        to_node = ? OR 
+                        (gateway_id IS NOT NULL AND gateway_id = ?)
+                    )'''
+                    query_params.extend([to_node, to_node])
+            
+            # Complete the query
+            base_query += '''
                 GROUP BY from_node, 
                     CASE 
                         WHEN gateway_id IS NOT NULL 
@@ -204,7 +241,9 @@ class MeshtasticDB:
                     END
                 HAVING packet_count >= 1
                 ORDER BY last_seen DESC
-            ''').fetchall()]
+            '''
+            
+            return [dict(row) for row in conn.execute(base_query, query_params).fetchall()]
     
     def get_recent_packets(self, limit=100):
         """Get recent packets"""

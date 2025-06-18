@@ -874,8 +874,8 @@ function refreshPendingConnections() {
     console.log('Refreshing connections for nodes:', nodeIds);
     pendingConnectionUpdates.clear();
     
-    // Fetch connections for the updated nodes
-    fetch(`/api/connections/nodes/${nodeIds}`)
+    // Fetch connections for the updated nodes using query parameter
+    fetch(`/api/connections?nodes=${nodeIds}`)
         .then(response => response.json())
         .then(connections => {
             console.log(`Found ${connections.length} connections for nodes ${nodeIds}`);

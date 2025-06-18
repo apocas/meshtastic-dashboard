@@ -37,9 +37,31 @@ def get_positioned_nodes():
 
 @app.route('/api/connections')
 def get_connections():
-    """API endpoint to get all connections"""
+    """API endpoint to get connections with optional filtering
+    
+    Query parameters:
+        from_node: Filter connections from a specific node
+        to_node: Filter connections to a specific node
+        nodes: Comma-separated list of nodes (filters connections involving any of these nodes)
+    """
     try:
-        connections = db.get_connections()
+        from_node = request.args.get('from_node')
+        to_node = request.args.get('to_node')
+        nodes = request.args.get('nodes')
+        
+        # Handle the 'nodes' parameter for backward compatibility
+        if nodes:
+            # Parse comma-separated node IDs
+            node_list = [node_id.strip() for node_id in nodes.split(',') if node_id.strip()]
+            if not node_list:
+                return jsonify([])
+            
+            # Use the efficient database method
+            connections = db.get_connections(nodes=node_list)
+            return jsonify(connections)
+        
+        # Direct filtering by from_node and/or to_node
+        connections = db.get_connections(from_node=from_node, to_node=to_node)
         return jsonify(connections)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -101,25 +123,6 @@ def get_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/connections/nodes/<node_ids>')
-def get_connections_for_nodes(node_ids):
-    """API endpoint to get connections involving specific nodes"""
-    try:
-        # Parse comma-separated node IDs
-        node_list = [node_id.strip() for node_id in node_ids.split(',') if node_id.strip()]
-        if not node_list:
-            return jsonify([])
-        
-        # Get all connections and filter for the specified nodes
-        all_connections = db.get_connections()
-        filtered_connections = [
-            conn for conn in all_connections 
-            if conn.get('from_node') in node_list or conn.get('to_node') in node_list
-        ]
-        
-        return jsonify(filtered_connections)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 def emit_node_update(node_data):
     """Emit node update to connected clients"""
