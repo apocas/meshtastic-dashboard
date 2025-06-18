@@ -208,17 +208,22 @@ class MeshtasticDB:
             ''').fetchall()]
     
     def get_connections(self, from_node=None, to_node=None, nodes=None):
-        """Get connections derived from packets with valid SNR/RSSI
+        """Get direct RF connections between nodes based on actual radio reception
+        
+        A connection represents direct RF communication where:
+        - One node transmitted (from_node)
+        - Another node received it directly via RF (gateway_id with SNR/RSSI)
+        - This indicates the nodes are within RF range of each other
         
         Args:
-            from_node: Optional filter for specific from_node
-            to_node: Optional filter for specific to_node  
+            from_node: Optional filter for specific transmitting node
+            to_node: Optional filter for specific receiving node  
             nodes: Optional list of nodes to filter connections involving any of them
         """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             
-            # Build the base query
+            # Build the base query - focus on direct RF reception
             base_query = '''
                 SELECT 
                     CASE 
@@ -226,35 +231,41 @@ class MeshtasticDB:
                         ELSE from_node 
                     END as from_node,
                     CASE 
-                        WHEN gateway_id IS NOT NULL 
-                             AND gateway_id != from_node 
-                             AND gateway_id != to_node 
-                        THEN (
-                            CASE 
-                                WHEN gateway_id LIKE '!%' THEN SUBSTR(gateway_id, 2)
-                                ELSE gateway_id 
-                            END
-                        )
-                        ELSE (
-                            CASE 
-                                WHEN to_node LIKE '!%' THEN SUBSTR(to_node, 2)
-                                ELSE to_node 
-                            END
-                        )
+                        WHEN gateway_id LIKE '!%' THEN SUBSTR(gateway_id, 2)
+                        ELSE gateway_id 
                     END as to_node,
                     COUNT(*) as packet_count,
                     AVG(rx_snr) as avg_snr,
                     AVG(rx_rssi) as avg_rssi,
-                    MAX(timestamp) as last_seen
+                    MAX(timestamp) as last_seen,
+                    MIN(rx_snr) as min_snr,
+                    MAX(rx_snr) as max_snr,
+                    MIN(rx_rssi) as min_rssi,
+                    MAX(rx_rssi) as max_rssi
                 FROM packets 
-                WHERE rx_snr IS NOT NULL 
+                WHERE 
+                    -- Must have RF reception data (indicates direct reception)
+                    rx_snr IS NOT NULL 
                     AND rx_rssi IS NOT NULL 
                     AND rx_snr != 0 
                     AND rx_rssi != 0
-                    AND from_node != to_node
+                    -- Must have a gateway_id (the actual receiving node)
+                    AND gateway_id IS NOT NULL
+                    AND gateway_id != ''
+                    -- Sender and receiver must be different
+                    AND from_node != gateway_id
+                    -- Exclude broadcast packets
                     AND to_node != 'ffffffff'
+                    -- Recent packets only (last 72 hours)
                     AND datetime(timestamp) > datetime('now', '-72 hours')
+                    -- Exclude diagnostic packets
                     AND (payload_type IS NULL OR payload_type != 'traceroute')
+                    -- Focus on packets likely to indicate neighbor relationships
+                    AND (
+                        payload_type IN ('nodeinfo', 'position', 'telemetry', 'text') 
+                        OR payload_type IS NULL
+                        OR portnum IN (1, 3, 4, 67)  -- NODEINFO, POSITION, ADMIN, TELEMETRY
+                    )
             '''
             
             # Add optional filters
@@ -265,10 +276,9 @@ class MeshtasticDB:
                 placeholders = ','.join(['?' for _ in nodes])
                 base_query += f''' AND (
                     from_node IN ({placeholders}) OR 
-                    to_node IN ({placeholders}) OR
-                    (gateway_id IS NOT NULL AND gateway_id IN ({placeholders}))
+                    gateway_id IN ({placeholders})
                 )'''
-                query_params.extend(nodes * 3)  # Add nodes list 3 times for the 3 conditions
+                query_params.extend(nodes * 2)  # Add nodes list 2 times for the 2 conditions
             else:
                 # Use individual node filters if nodes list is not provided
                 if from_node is not None:
@@ -276,13 +286,10 @@ class MeshtasticDB:
                     query_params.append(from_node)
                 
                 if to_node is not None:
-                    base_query += ''' AND (
-                        to_node = ? OR 
-                        (gateway_id IS NOT NULL AND gateway_id = ?)
-                    )'''
-                    query_params.extend([to_node, to_node])
+                    base_query += ' AND gateway_id = ?'
+                    query_params.append(to_node)
             
-            # Complete the query
+            # Complete the query - group by actual RF sender and receiver
             base_query += '''
                 GROUP BY 
                     CASE 
@@ -290,24 +297,11 @@ class MeshtasticDB:
                         ELSE from_node 
                     END,
                     CASE 
-                        WHEN gateway_id IS NOT NULL 
-                             AND gateway_id != from_node 
-                             AND gateway_id != to_node 
-                        THEN (
-                            CASE 
-                                WHEN gateway_id LIKE '!%' THEN SUBSTR(gateway_id, 2)
-                                ELSE gateway_id 
-                            END
-                        )
-                        ELSE (
-                            CASE 
-                                WHEN to_node LIKE '!%' THEN SUBSTR(to_node, 2)
-                                ELSE to_node 
-                            END
-                        )
+                        WHEN gateway_id LIKE '!%' THEN SUBSTR(gateway_id, 2)
+                        ELSE gateway_id 
                     END
-                HAVING packet_count >= 1
-                ORDER BY last_seen DESC
+                HAVING packet_count >= 2  -- Require multiple packets for reliable connection
+                ORDER BY packet_count DESC, last_seen DESC
             '''
             
             return [dict(row) for row in conn.execute(base_query, query_params).fetchall()]
