@@ -2,6 +2,7 @@ import sqlite3
 import json
 from datetime import datetime
 import threading
+import math
 
 class MeshtasticDB:
     def __init__(self, db_path="meshtastic.db"):
@@ -21,6 +22,7 @@ class MeshtasticDB:
                     latitude REAL,
                     longitude REAL,
                     altitude REAL,
+                    position_quality TEXT DEFAULT 'unknown',
                     last_seen TIMESTAMP,
                     battery_level INTEGER,
                     voltage REAL,
@@ -32,6 +34,14 @@ class MeshtasticDB:
                     is_licensed BOOLEAN
                 )
             ''')
+            
+            # Add position_quality column if it doesn't exist (for existing databases)
+            try:
+                conn.execute('ALTER TABLE nodes ADD COLUMN position_quality TEXT DEFAULT \'unknown\'')
+                conn.execute('UPDATE nodes SET position_quality = \'confirmed\' WHERE latitude IS NOT NULL AND longitude IS NOT NULL')
+            except sqlite3.OperationalError:
+                # Column already exists, ignore
+                pass
             
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS packets (
@@ -68,6 +78,7 @@ class MeshtasticDB:
                 
                 # Check if node exists
                 existing = conn.execute('SELECT * FROM nodes WHERE node_id = ?', (node_id,)).fetchone()
+                needs_triangulation = False
                 
                 if existing:
                     # Node exists, update only the provided fields
@@ -80,6 +91,12 @@ class MeshtasticDB:
                             update_fields.append(f"{field} = ?")
                             update_values.append(node_data[field])
                     
+                    # Set position quality if coordinates are provided
+                    if 'latitude' in node_data and 'longitude' in node_data:
+                        if node_data['latitude'] is not None and node_data['longitude'] is not None:
+                            update_fields.append("position_quality = ?")
+                            update_values.append('confirmed')
+                    
                     # Always update last_seen
                     update_fields.append("last_seen = ?")
                     update_values.append(datetime.now())
@@ -91,16 +108,18 @@ class MeshtasticDB:
                         
                         # Log position updates
                         if 'latitude' in node_data or 'longitude' in node_data:
-                            print(f"[�] Updated position for {node_id}: lat={node_data.get('latitude')}, lon={node_data.get('longitude')}")
+                            print(f"[📍] Updated position for {node_id}: lat={node_data.get('latitude')}, lon={node_data.get('longitude')}")
                 else:
                     # Node doesn't exist, insert new record
+                    position_quality = 'confirmed' if (node_data.get('latitude') is not None and node_data.get('longitude') is not None) else 'unknown'
+                    
                     conn.execute('''
                         INSERT INTO nodes (
                             node_id, long_name, short_name, hardware_model,
-                            latitude, longitude, altitude, last_seen,
+                            latitude, longitude, altitude, position_quality, last_seen,
                             battery_level, voltage, snr, rssi, channel,
                             firmware_version, role, is_licensed
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         node_data.get('node_id'),
                         node_data.get('long_name'),
@@ -109,6 +128,7 @@ class MeshtasticDB:
                         node_data.get('latitude'),
                         node_data.get('longitude'),
                         node_data.get('altitude'),
+                        position_quality,
                         datetime.now(),
                         node_data.get('battery_level'),
                         node_data.get('voltage'),
@@ -121,6 +141,25 @@ class MeshtasticDB:
                     ))
                 
                 conn.commit()
+                
+                # Check if new node needs triangulation (without confirmed position)
+                needs_triangulation = (node_data.get('latitude') is None or 
+                                     node_data.get('longitude') is None)
+                
+        # For new nodes, attempt triangulation after the database transaction is complete
+        if not existing and needs_triangulation:
+            self.triangulate_single_node(node_id)
+            
+        # For existing nodes, check if triangulation is needed after the transaction
+        elif existing:
+            # Get updated node info to check if triangulation is needed
+            with sqlite3.connect(self.db_path) as conn:
+                updated_node = conn.execute('SELECT latitude, longitude, position_quality FROM nodes WHERE node_id = ?', (node_id,)).fetchone()
+                if updated_node:
+                    lat, lon, quality = updated_node
+                    # Try triangulation if node doesn't have a confirmed position
+                    if (lat is None or lon is None or quality != 'confirmed'):
+                        self.triangulate_single_node(node_id)
     
     def add_packet(self, packet_data):
         """Add packet data"""
@@ -201,7 +240,7 @@ class MeshtasticDB:
                     AND rx_rssi != 0
                     AND from_node != to_node
                     AND to_node != 'ffffffff'
-                    AND datetime(timestamp) > datetime('now', '-48 hours')
+                    AND datetime(timestamp) > datetime('now', '-72 hours')
             '''
             
             # Add optional filters
@@ -278,3 +317,265 @@ class MeshtasticDB:
         """Get total count of all packets in the database"""
         with sqlite3.connect(self.db_path) as conn:
             return conn.execute('SELECT COUNT(*) FROM packets').fetchone()[0]
+    
+    def get_node_neighbors(self, node_id):
+        """Get all neighboring nodes (both as sender and receiver) with connection details"""
+        connections = self.get_connections(nodes=[node_id])
+        neighbors = []
+        
+        # Get the requesting node's position for GPS distance calculation
+        requesting_node = self.get_node_by_id(node_id)
+        requesting_has_gps = (requesting_node and 
+                             requesting_node.get('latitude') is not None and 
+                             requesting_node.get('longitude') is not None and
+                             requesting_node.get('position_quality') == 'confirmed')
+        
+        for conn in connections:
+            neighbor_id = None
+            if conn['from_node'] == node_id:
+                neighbor_id = conn['to_node']
+            elif conn['to_node'] == node_id:
+                neighbor_id = conn['from_node']
+            
+            if neighbor_id:
+                neighbor_node = self.get_node_by_id(neighbor_id)
+                if neighbor_node:
+                    # Determine the best distance estimate
+                    distance_estimate = self._estimate_distance_from_rssi(conn.get('avg_rssi', 0))
+                    distance_method = 'rssi'
+                    
+                    # Use GPS distance if both nodes have confirmed GPS positions
+                    neighbor_has_gps = (neighbor_node.get('latitude') is not None and 
+                                       neighbor_node.get('longitude') is not None and
+                                       neighbor_node.get('position_quality') == 'confirmed')
+                    
+                    if requesting_has_gps and neighbor_has_gps:
+                        gps_distance = self._haversine_distance(
+                            requesting_node['latitude'], requesting_node['longitude'],
+                            neighbor_node['latitude'], neighbor_node['longitude']
+                        )
+                        distance_estimate = gps_distance
+                        distance_method = 'gps'
+                    
+                    neighbor_data = {
+                        'node': neighbor_node,
+                        'connection': conn,
+                        'distance_estimate': distance_estimate,
+                        'distance_method': distance_method
+                    }
+                    neighbors.append(neighbor_data)
+        
+        return neighbors
+    
+    def _estimate_distance_from_rssi(self, rssi, tx_power=-10):
+        """Estimate distance in meters from RSSI using path loss formula
+        
+        Args:
+            rssi: Received Signal Strength Indicator in dBm
+            tx_power: Transmit power in dBm (LoRa typical is around -10 to 20 dBm)
+        
+        Returns:
+            Estimated distance in meters
+        """
+        if rssi == 0 or rssi is None:
+            return 10000  # Unknown distance, set high value
+        
+        # Free space path loss formula (simplified)
+        # RSSI = Tx Power - (20 * log10(distance) + 20 * log10(frequency) + 32.44)
+        # For 915 MHz: frequency factor = 20 * log10(915) + 32.44 ≈ 92.4
+        # Rearranging: distance = 10^((Tx Power - RSSI - 92.4) / 20)
+        
+        path_loss = tx_power - rssi
+        if path_loss <= 0:
+            return 1  # Very close
+        
+        # Simplified formula for 915MHz band
+        distance = 10 ** ((path_loss - 32.44) / 20)
+        return max(1, min(distance, 50000))  # Clamp between 1m and 50km
+    
+    def _haversine_distance(self, lat1, lon1, lat2, lon2):
+        """Calculate the great circle distance between two points in meters"""
+        R = 6371000  # Earth's radius in meters
+        
+        lat1_rad = math.radians(lat1)
+        lat2_rad = math.radians(lat2)
+        delta_lat = math.radians(lat2 - lat1)
+        delta_lon = math.radians(lon2 - lon1)
+        
+        a = (math.sin(delta_lat / 2) ** 2 + 
+             math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        
+        return R * c
+    
+    def _trilaterate(self, points):
+        """Trilaterate position from multiple reference points
+        
+        Args:
+            points: List of dicts with keys: 'lat', 'lon', 'distance'
+        
+        Returns:
+            Dict with 'lat', 'lon' if successful, None if failed
+        """
+        if len(points) < 2:
+            return None
+        
+        if len(points) == 2:
+            # For 2 points, return midpoint (less accurate)
+            lat1, lon1, d1 = points[0]['lat'], points[0]['lon'], points[0]['distance']
+            lat2, lon2, d2 = points[1]['lat'], points[1]['lon'], points[1]['distance']
+            
+            return {
+                'lat': (lat1 + lat2) / 2,
+                'lon': (lon1 + lon2) / 2,
+                'quality': 'estimated'
+            }
+        
+        # For 3+ points, use least squares triangulation
+        return self._least_squares_trilateration(points)
+    
+    def _least_squares_trilateration(self, points):
+        """Least squares trilateration for 3+ reference points"""
+        if len(points) < 3:
+            return None
+        
+        # Convert to Cartesian coordinates (approximate for small areas)
+        # Use first point as origin
+        origin_lat, origin_lon = points[0]['lat'], points[0]['lon']
+        
+        # Convert lat/lon to local Cartesian (meters from origin)
+        cartesian_points = []
+        for point in points:
+            lat, lon = point['lat'], point['lon']
+            
+            # Approximate conversion (good for small areas)
+            x = (lon - origin_lon) * 111320 * math.cos(math.radians(origin_lat))
+            y = (lat - origin_lat) * 110540
+            
+            cartesian_points.append({
+                'x': x,
+                'y': y,
+                'distance': point['distance']
+            })
+        
+        # Solve using least squares (simplified version)
+        # For simplicity, we'll use the first 3 points for triangulation
+        p1, p2, p3 = cartesian_points[0], cartesian_points[1], cartesian_points[2]
+        
+        # Circle intersection method
+        try:
+            A = 2 * (p2['x'] - p1['x'])
+            B = 2 * (p2['y'] - p1['y'])
+            C = (p1['distance']**2 - p2['distance']**2 - p1['x']**2 + p2['x']**2 - p1['y']**2 + p2['y']**2)
+            
+            D = 2 * (p3['x'] - p2['x'])
+            E = 2 * (p3['y'] - p2['y'])
+            F = (p2['distance']**2 - p3['distance']**2 - p2['x']**2 + p3['x']**2 - p2['y']**2 + p3['y']**2)
+            
+            # Solve the system of equations
+            denominator = A * E - B * D
+            if abs(denominator) < 1e-10:
+                return None  # Points are collinear
+            
+            x = (C * E - F * B) / denominator
+            y = (A * F - D * C) / denominator
+            
+            # Convert back to lat/lon
+            result_lat = origin_lat + y / 110540
+            result_lon = origin_lon + x / (111320 * math.cos(math.radians(origin_lat)))
+            
+            return {
+                'lat': result_lat,
+                'lon': result_lon,
+                'quality': 'triangulated'
+            }
+            
+        except (ZeroDivisionError, ValueError):
+            return None
+    
+    
+    def triangulate_single_node(self, node_id):
+        """Attempt to triangulate position for a single node
+        
+        Args:
+            node_id: The ID of the node to triangulate
+            
+        Returns:
+            Dict with result info or None if failed
+        """
+        try:
+            # Get the node to check if it already has a position
+            node = self.get_node_by_id(node_id)
+            if not node:
+                return None
+                
+            # Skip if node already has a confirmed position
+            if (node.get('latitude') is not None and 
+                node.get('longitude') is not None and 
+                node.get('position_quality') == 'confirmed'):
+                return None
+                
+            # Get neighbors with confirmed positions
+            neighbors = self.get_node_neighbors(node_id)
+            positioned_neighbors = []
+            gps_distance_count = 0
+            
+            for neighbor_data in neighbors:
+                neighbor = neighbor_data['node']
+                if (neighbor.get('latitude') is not None and 
+                    neighbor.get('longitude') is not None and
+                    neighbor.get('position_quality') == 'confirmed'):
+                    
+                    positioned_neighbors.append({
+                        'lat': neighbor['latitude'],
+                        'lon': neighbor['longitude'],
+                        'distance': neighbor_data['distance_estimate'],
+                        'distance_method': neighbor_data.get('distance_method', 'rssi')
+                    })
+                    
+                    if neighbor_data.get('distance_method') == 'gps':
+                        gps_distance_count += 1
+            
+            if len(positioned_neighbors) >= 2:
+                # Attempt triangulation with improved quality assessment
+                result = self._trilaterate(positioned_neighbors)
+                
+                if result:
+                    # Simplified quality based on number of reference points
+                    if len(positioned_neighbors) >= 3:
+                        result['quality'] = 'triangulated'  # 3+ points
+                    else:
+                        result['quality'] = 'estimated'  # 2 points only
+                
+                if result:
+                    # Update node position in a separate transaction
+                    try:
+                        with self.lock:
+                            with sqlite3.connect(self.db_path) as conn:
+                                conn.execute('''
+                                    UPDATE nodes 
+                                    SET latitude = ?, longitude = ?, position_quality = ?
+                                    WHERE node_id = ?
+                                ''', (result['lat'], result['lon'], result['quality'], node_id))
+                                conn.commit()
+                        
+                        print(f"[📍] Auto-triangulated position for {node_id}: "
+                              f"lat={result['lat']:.6f}, lon={result['lon']:.6f}, "
+                              f"quality={result['quality']}")
+                        
+                        return {
+                            'success': True,
+                            'lat': result['lat'],
+                            'lon': result['lon'],
+                            'quality': result['quality'],
+                            'reference_points': len(positioned_neighbors)
+                        }
+                    except Exception as db_error:
+                        print(f"[❌] Database error during triangulation for {node_id}: {db_error}")
+                        return None
+            
+            return None
+            
+        except Exception as e:
+            print(f"[❌] Error during triangulation for {node_id}: {e}")
+            return None

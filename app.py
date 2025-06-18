@@ -123,6 +123,18 @@ def get_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/nodes/neighbors/<node_id>')
+def get_node_neighbors(node_id):
+    """API endpoint to get neighbors of a specific node"""
+    try:
+        # Remove ! prefix if present
+        clean_node_id = node_id.lstrip('!')
+        
+        neighbors = db.get_node_neighbors(clean_node_id)
+        return jsonify(neighbors)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 def emit_node_update(node_data):
     """Emit node update to connected clients"""

@@ -72,6 +72,9 @@ function initializeMap() {
         active: { color: '#48bb78', radius: 10 },
         inactive: { color: '#a0aec0', radius: 6 }
     };
+    
+    // Add position quality legend
+    addPositionQualityLegend();
 }
 
 function initializeNetwork() {
@@ -231,21 +234,57 @@ function updateNode(nodeData) {
                        nodeData.latitude !== '' && nodeData.longitude !== '' &&
                        !isNaN(nodeData.latitude) && !isNaN(nodeData.longitude);
     
+    // Determine node color based on position quality
+    let nodeColor;
+    if (hasPosition) {
+        const positionQuality = nodeData.position_quality || 'unknown';
+        switch (positionQuality) {
+            case 'confirmed':
+                // Green for confirmed GPS positions
+                nodeColor = {
+                    border: '#38a169',
+                    background: '#48bb78',
+                    highlight: {
+                        border: '#2f855a',
+                        background: '#68d391'
+                    }
+                };
+                break;
+            case 'triangulated':
+                // Yellow for triangulated positions (3+ points)
+                nodeColor = {
+                    border: '#d69e2e',
+                    background: '#ecc94b',
+                    highlight: {
+                        border: '#b7791f',
+                        background: '#f6e05e'
+                    }
+                };
+                break;
+            case 'estimated':
+                // Red for estimated positions (2 points)
+                nodeColor = {
+                    border: '#c53030',
+                    background: '#e53e3e',
+                    highlight: {
+                        border: '#9b2c2c',
+                        background: '#fc8181'
+                    }
+                };
+                break;
+            default:
+                // Default color for unknown quality (shouldn't appear on map)
+                nodeColor = undefined;
+        }
+    }
+    
     // Always update network graph node (show all nodes in graph)
     if (typeof vis !== 'undefined' && nodes) {
         const networkNode = {
             id: nodeId,
             label: nodeData.short_name || nodeData.long_name || nodeId.slice(-4),
-            title: `${nodeData.long_name || 'Unknown'}\nID: ${nodeId}\nLast seen: ${nodeData.last_seen || 'Never'}`,
-            // Color nodes with position in green, others in default
-            color: hasPosition ? {
-                border: '#48bb78',
-                background: '#68d391',
-                highlight: {
-                    border: '#38a169',
-                    background: '#9ae6b4'
-                }
-            } : undefined
+            title: `${nodeData.long_name || 'Unknown'}\nID: ${nodeId}\nPosition Quality: ${nodeData.position_quality || 'unknown'}\nLast seen: ${nodeData.last_seen || 'Never'}`,
+            color: nodeColor
         };
         
         if (nodes.get(nodeId)) {
@@ -300,6 +339,17 @@ function updateMapMarker(nodeData) {
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
                     <strong>Position:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}
                 </div>
+                <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
+                    <strong>Position Quality:</strong> 
+                    <span style="color: ${(nodeData.position_quality === 'confirmed' ? '#38a169' : 
+                        nodeData.position_quality === 'triangulated' ? '#d69e2e' : 
+                        nodeData.position_quality === 'estimated' ? '#c53030' : '#718096')};">
+                        ${nodeData.position_quality === 'confirmed' ? 'GPS Confirmed' : 
+                          nodeData.position_quality === 'triangulated' ? 'Triangulated (3+ points)' : 
+                          nodeData.position_quality === 'estimated' ? 'Estimated (2 points)' : 
+                          'Unknown'}
+                    </span>
+                </div>
                 ${nodeData.altitude ? `
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
                     <strong>Altitude:</strong> ${nodeData.altitude}m
@@ -342,9 +392,27 @@ function updateMapMarker(nodeData) {
         mapMarkers[nodeId].setPopupContent(popupContent);
         mapMarkers[nodeId].setTooltipContent(tooltipContent);
     } else {
+        // Determine marker color based on position quality
+        let markerColor = '#4fd1c7'; // Default teal
+        const positionQuality = nodeData.position_quality || 'unknown';
+        
+        switch (positionQuality) {
+            case 'confirmed':
+                markerColor = '#48bb78'; // Green for confirmed GPS positions
+                break;
+            case 'triangulated':
+                markerColor = '#ecc94b'; // Yellow for triangulated positions (3+ points)
+                break;
+            case 'estimated':
+                markerColor = '#e53e3e'; // Red for estimated positions (2 points)
+                break;
+            default:
+                markerColor = '#4fd1c7'; // Default teal (shouldn't appear)
+        }
+        
         const marker = L.circleMarker([lat, lon], {
             radius: 8,
-            fillColor: '#4fd1c7',
+            fillColor: markerColor,
             color: '#ffffff',
             weight: 2,
             opacity: 1,
@@ -370,6 +438,17 @@ function updateMapMarker(nodeData) {
                 </div>` : ''}
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
                     <strong>Position:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}
+                </div>
+                <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
+                    <strong>Position Quality:</strong> 
+                    <span style="color: ${(positionQuality === 'confirmed' ? '#38a169' : 
+                        positionQuality === 'triangulated' ? '#d69e2e' : 
+                        positionQuality === 'estimated' ? '#c53030' : '#718096')};">
+                        ${positionQuality === 'confirmed' ? 'GPS Confirmed' : 
+                          positionQuality === 'triangulated' ? 'Triangulated (3+ points)' : 
+                          positionQuality === 'estimated' ? 'Estimated (2 points)' : 
+                          'Unknown'}
+                    </span>
                 </div>
                 ${nodeData.altitude ? `
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
@@ -882,4 +961,43 @@ function refreshPendingConnections() {
             connections.forEach(connection => updateConnection(connection));
         })
         .catch(error => console.error('Error fetching connections for nodes:', error));
+}
+
+// Function to trigger position triangulation
+// Function to add position quality legend
+function addPositionQualityLegend() {
+    if (!map) return;
+    
+    const legend = L.control({ position: 'bottomright' });
+    
+    legend.onAdd = function(map) {
+        const div = L.DomUtil.create('div', 'position-legend');
+        div.style.backgroundColor = 'rgba(45, 55, 72, 0.95)';
+        div.style.color = '#ffffff';
+        div.style.padding = '10px';
+        div.style.borderRadius = '6px';
+        div.style.fontSize = '12px';
+        div.style.fontFamily = "'Segoe UI', sans-serif";
+        div.style.border = '1px solid #4a5568';
+        
+        div.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 8px; text-align: center;">Position Quality</div>
+            <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                <div style="width: 12px; height: 12px; background-color: #48bb78; border-radius: 50%; margin-right: 8px;"></div>
+                <span>GPS Confirmed</span>
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                <div style="width: 12px; height: 12px; background-color: #ecc94b; border-radius: 50%; margin-right: 8px;"></div>
+                <span>Triangulated (3+ points)</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 12px; height: 12px; background-color: #e53e3e; border-radius: 50%; margin-right: 8px;"></div>
+                <span>Estimated (2 points)</span>
+            </div>
+        `;
+        
+        return div;
+    };
+    
+    legend.addTo(map);
 }
