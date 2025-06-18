@@ -221,13 +221,26 @@ class MeshtasticDB:
             # Build the base query
             base_query = '''
                 SELECT 
-                    from_node,
+                    CASE 
+                        WHEN from_node LIKE '!%' THEN SUBSTR(from_node, 2)
+                        ELSE from_node 
+                    END as from_node,
                     CASE 
                         WHEN gateway_id IS NOT NULL 
                              AND gateway_id != from_node 
                              AND gateway_id != to_node 
-                        THEN gateway_id 
-                        ELSE to_node 
+                        THEN (
+                            CASE 
+                                WHEN gateway_id LIKE '!%' THEN SUBSTR(gateway_id, 2)
+                                ELSE gateway_id 
+                            END
+                        )
+                        ELSE (
+                            CASE 
+                                WHEN to_node LIKE '!%' THEN SUBSTR(to_node, 2)
+                                ELSE to_node 
+                            END
+                        )
                     END as to_node,
                     COUNT(*) as packet_count,
                     AVG(rx_snr) as avg_snr,
@@ -241,6 +254,7 @@ class MeshtasticDB:
                     AND from_node != to_node
                     AND to_node != 'ffffffff'
                     AND datetime(timestamp) > datetime('now', '-72 hours')
+                    AND (payload_type IS NULL OR payload_type != 'traceroute')
             '''
             
             # Add optional filters
@@ -270,13 +284,27 @@ class MeshtasticDB:
             
             # Complete the query
             base_query += '''
-                GROUP BY from_node, 
+                GROUP BY 
+                    CASE 
+                        WHEN from_node LIKE '!%' THEN SUBSTR(from_node, 2)
+                        ELSE from_node 
+                    END,
                     CASE 
                         WHEN gateway_id IS NOT NULL 
                              AND gateway_id != from_node 
                              AND gateway_id != to_node 
-                        THEN gateway_id 
-                        ELSE to_node 
+                        THEN (
+                            CASE 
+                                WHEN gateway_id LIKE '!%' THEN SUBSTR(gateway_id, 2)
+                                ELSE gateway_id 
+                            END
+                        )
+                        ELSE (
+                            CASE 
+                                WHEN to_node LIKE '!%' THEN SUBSTR(to_node, 2)
+                                ELSE to_node 
+                            END
+                        )
                     END
                 HAVING packet_count >= 1
                 ORDER BY last_seen DESC
