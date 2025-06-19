@@ -1257,12 +1257,12 @@ function updateMapConnections(connections) {
 
 function clearMapConnections() {
     // Remove all connection lines from map
-    if (typeof mapConnectionLines !== 'undefined' && mapConnectionLines) {
-        Object.values(mapConnectionLines).forEach(line => {
+    if (typeof connectionLines !== 'undefined' && connectionLines) {
+        Object.values(connectionLines).forEach(line => {
             if (map.hasLayer(line)) {
                 map.removeLayer(line);
             }
         });
-        mapConnectionLines = {};
+        connectionLines = {};
     }
 }
