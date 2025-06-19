@@ -139,7 +139,7 @@ MQTT Broker → MQTT Decoder → SQLite Database → Flask API → WebSocket →
 The decoder supports all major Meshtastic message types:
 
 - **📍 Position**: GPS coordinates, altitude, precision
-- **👤 Node Info**: Device names, hardware models, roles
+- **👤 Node Info**: Device names, hardware models with human-readable names, roles
 - **📱 Telemetry**: Battery, voltage, channel utilization, environmental sensors
 - **💬 Text Messages**: Plain text communications
 - **🧭 Waypoints**: Named locations and POIs
@@ -166,6 +166,33 @@ The decoder supports all major Meshtastic message types:
 - Packet counts and averages
 - Signal quality metrics
 - Last activity timestamps
+
+## Hardware Model Support
+
+The dashboard includes comprehensive hardware model mapping that converts numeric hardware model IDs to human-readable device names and vendor information.
+
+### Supported Devices
+
+The system recognizes over 60 different Meshtastic hardware models, including:
+
+- **LilyGO/TTGO**: TBEAM, TLORA_V2, TLORA_V1, T_ECHO, TDECK, and variants
+- **Heltec**: HELTEC_V3, HELTEC_V2_1, HELTEC_WIRELESS_TRACKER, HELTEC_WIRELESS_PAPER
+- **RAK Wireless**: RAK4631, RAK11200, RAK11310, WISBLOCK_4631
+- **SenseCAP**: SENSELORA_RP2040, SENSELORA_S3, SENSELORA_S3_MINI
+- **Other vendors**: RadioMaster, BetaFPV, Nordic, DIY boards, and more
+
+### Display Features
+
+- **Human-readable names**: Instead of showing "43", displays "T_ECHO"
+- **Vendor information**: Shows manufacturer (e.g., "LilyGO", "Heltec", "RAK Wireless")
+- **Fallback handling**: Unknown models show the numeric ID with "(Unknown)" label
+- **Backwards compatibility**: Still displays raw numbers when model name is unavailable
+
+The hardware model information appears in:
+- Node popup details on the map
+- Network graph node information
+- Node search results
+- Detailed node views
 
 ## Real-time Features
 

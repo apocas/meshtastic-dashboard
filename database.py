@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import threading
 import math
+from hardware_models import get_hardware_info
 
 class MeshtasticDB:
     def __init__(self, db_path="meshtastic.db"):
@@ -171,8 +172,7 @@ class MeshtasticDB:
                         packet_id, from_node, to_node, portnum, channel,
                         hop_limit, want_ack, rx_time, rx_snr, rx_rssi,
                         payload_type, payload_data, gateway_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)                ''', (
                     packet_data.get('packet_id'),
                     packet_data.get('from_node'),
                     packet_data.get('to_node'),
@@ -184,28 +184,51 @@ class MeshtasticDB:
                     packet_data.get('rx_snr'),
                     packet_data.get('rx_rssi'),
                     packet_data.get('payload_type'),
-                    json.dumps(packet_data.get('payload_data', {})),
-                    packet_data.get('gateway_id')                ))
+                    json.dumps(packet_data.get('payload_data', {})),                    packet_data.get('gateway_id')                ))
                 conn.commit()
     
     def get_nodes(self):
         """Get all nodes"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            return [dict(row) for row in conn.execute('''
+            nodes = [dict(row) for row in conn.execute('''
                 SELECT * FROM nodes 
                 ORDER BY last_seen DESC
             ''').fetchall()]
+            
+            # Add hardware model information
+            for node in nodes:
+                if node.get('hardware_model') is not None:
+                    hw_info = get_hardware_info(node['hardware_model'])
+                    node['hardware_model_name'] = hw_info['model_name']
+                    node['hardware_vendor'] = hw_info['vendor']
+                else:
+                    node['hardware_model_name'] = 'Unknown'
+                    node['hardware_vendor'] = 'Unknown'
+            
+            return nodes
     
     def get_nodes_with_position(self):
         """Get only nodes that have coordinates"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            return [dict(row) for row in conn.execute('''
+            nodes = [dict(row) for row in conn.execute('''
                 SELECT * FROM nodes 
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL
                 ORDER BY last_seen DESC
             ''').fetchall()]
+            
+            # Add hardware model information
+            for node in nodes:
+                if node.get('hardware_model') is not None:
+                    hw_info = get_hardware_info(node['hardware_model'])
+                    node['hardware_model_name'] = hw_info['model_name']
+                    node['hardware_vendor'] = hw_info['vendor']
+                else:
+                    node['hardware_model_name'] = 'Unknown'
+                    node['hardware_vendor'] = 'Unknown'
+            
+            return nodes
 
     def get_connections(self, from_node=None, to_node=None, nodes=None, hours=None):
         """Get direct RF connections between nodes based on actual radio reception
@@ -320,13 +343,24 @@ class MeshtasticDB:
                 ORDER BY timestamp DESC 
                 LIMIT ?
             ''', (limit,)).fetchall()]
-
+    
     def get_node_by_id(self, node_id):
         """Get a specific node by ID"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             result = conn.execute('SELECT * FROM nodes WHERE node_id = ?', (node_id,)).fetchone()
-            return dict(result) if result else None
+            if result:
+                node = dict(result)
+                # Add hardware model information
+                if node.get('hardware_model') is not None:
+                    hw_info = get_hardware_info(node['hardware_model'])
+                    node['hardware_model_name'] = hw_info['model_name']
+                    node['hardware_vendor'] = hw_info['vendor']
+                else:
+                    node['hardware_model_name'] = 'Unknown'
+                    node['hardware_vendor'] = 'Unknown'
+                return node
+            return None
     
     def get_packets_by_node(self, node_id, hours=24):
         """Get packets involving a specific node from the last N hours"""

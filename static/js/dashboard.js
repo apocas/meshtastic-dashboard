@@ -5,6 +5,25 @@ let mapMarkers = {};
 let connectionLines = {};
 let pendingConnectionUpdates = new Set(); // Track nodes that need connection updates
 
+// Utility function to format hardware model information
+function formatHardwareInfo(nodeData) {
+    if (!nodeData.hardware_model_name && !nodeData.hardware_model) {
+        return '';
+    }
+    
+    let hardwareText = '';
+    if (nodeData.hardware_model_name) {
+        hardwareText = nodeData.hardware_model_name;
+        if (nodeData.hardware_vendor && nodeData.hardware_vendor !== 'Unknown') {
+            hardwareText = `${nodeData.hardware_vendor} ${hardwareText}`;
+        }
+    } else if (nodeData.hardware_model) {
+        hardwareText = `Hardware Model ${nodeData.hardware_model}`;
+    }
+    
+    return hardwareText;
+}
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded');
@@ -368,8 +387,7 @@ function updateMapMarker(nodeData) {
     if (mapMarkers[nodeId]) {
         // Update existing marker position
         mapMarkers[nodeId].setLatLng([lat, lon]);
-        
-        // Update popup and tooltip content
+          // Update popup and tooltip content
         const popupContent = `
             <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
                 <div style="font-weight: bold; font-size: 14px; color: #2d3748; margin-bottom: 8px;">
@@ -382,9 +400,9 @@ function updateMapMarker(nodeData) {
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
                     <strong>Short Name:</strong> ${nodeData.short_name}
                 </div>` : ''}
-                ${nodeData.hardware_model ? `
+                ${formatHardwareInfo(nodeData) ? `
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                    <strong>Hardware:</strong> ${nodeData.hardware_model}
+                    <strong>Hardware:</strong> ${formatHardwareInfo(nodeData)}
                 </div>` : ''}
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
                     <strong>Position:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}
@@ -426,16 +444,15 @@ function updateMapMarker(nodeData) {
                 </div>` : ''}
             </div>
         `;
-        
-        const tooltipContent = `
-            <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 250px;">
-                <div style="font-weight: bold; margin-bottom: 4px;">
+          const tooltipContent = `
+            <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 250px; background-color: rgba(0, 0, 0, 0.8); padding: 8px; border-radius: 4px; color: #ffffff;">
+                <div style="font-weight: bold; margin-bottom: 4px; color: #ffffff;">
                     ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
                 </div>
-                <div style="color: #666; margin-bottom: 2px;">ID: !${nodeId}</div>
-                ${nodeData.hardware_model ? `<div style="color: #666; margin-bottom: 2px;">${nodeData.hardware_model}</div>` : ''}
-                ${nodeData.battery_level ? `<div style="color: #666; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
-                ${nodeData.last_seen ? `<div style="color: #666; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
+                <div style="color: #e0e0e0; margin-bottom: 2px;">ID: !${nodeId}</div>
+                ${formatHardwareInfo(nodeData) ? `<div style="color: #e0e0e0; margin-bottom: 2px;">${formatHardwareInfo(nodeData)}</div>` : ''}
+                ${nodeData.battery_level ? `<div style="color: #e0e0e0; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
+                ${nodeData.last_seen ? `<div style="color: #c0c0c0; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
             </div>
         `;
         
@@ -468,8 +485,7 @@ function updateMapMarker(nodeData) {
             opacity: 1,
             fillOpacity: 0.8
         }).addTo(map);
-        
-        // Create detailed popup content
+          // Create detailed popup content
         const popupContent = `
             <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
                 <div style="font-weight: bold; font-size: 14px; color: #2d3748; margin-bottom: 8px;">
@@ -482,9 +498,9 @@ function updateMapMarker(nodeData) {
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
                     <strong>Short Name:</strong> ${nodeData.short_name}
                 </div>` : ''}
-                ${nodeData.hardware_model ? `
+                ${formatHardwareInfo(nodeData) ? `
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                    <strong>Hardware:</strong> ${nodeData.hardware_model}
+                    <strong>Hardware:</strong> ${formatHardwareInfo(nodeData)}
                 </div>` : ''}
                 <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
                     <strong>Position:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}
@@ -525,18 +541,16 @@ function updateMapMarker(nodeData) {
                     <strong>Last seen:</strong> ${new Date(nodeData.last_seen).toLocaleString()}
                 </div>` : ''}
             </div>
-        `;
-        
-        // Create hover tooltip content (more concise)
+        `;        // Create hover tooltip content (more concise)
         const tooltipContent = `
-            <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 250px;">
-                <div style="font-weight: bold; margin-bottom: 4px;">
+            <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 250px; background-color: rgba(0, 0, 0, 0.8); padding: 8px; border-radius: 4px; color: #ffffff;">
+                <div style="font-weight: bold; margin-bottom: 4px; color: #ffffff;">
                     ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
                 </div>
-                <div style="color: #666; margin-bottom: 2px;">ID: !${nodeId}</div>
-                ${nodeData.hardware_model ? `<div style="color: #666; margin-bottom: 2px;">${nodeData.hardware_model}</div>` : ''}
-                ${nodeData.battery_level ? `<div style="color: #666; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
-                ${nodeData.last_seen ? `<div style="color: #666; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
+                <div style="color: #e0e0e0; margin-bottom: 2px;">ID: !${nodeId}</div>
+                ${formatHardwareInfo(nodeData) ? `<div style="color: #e0e0e0; margin-bottom: 2px;">${formatHardwareInfo(nodeData)}</div>` : ''}
+                ${nodeData.battery_level ? `<div style="color: #e0e0e0; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
+                ${nodeData.last_seen ? `<div style="color: #c0c0c0; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
             </div>
         `;
         
@@ -1041,14 +1055,13 @@ function showNodePopup(nodeId) {
                     <div style="margin-bottom: 16px;">
                         <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
                             <strong>Node ID:</strong> !${nodeId.replace(/^!+/, '')}
-                        </div>
-                        ${fullNodeData.short_name && fullNodeData.long_name !== fullNodeData.short_name ? `
+                        </div>                        ${fullNodeData.short_name && fullNodeData.long_name !== fullNodeData.short_name ? `
                         <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
                             <strong>Short Name:</strong> ${fullNodeData.short_name}
                         </div>` : ''}
-                        ${fullNodeData.hardware_model ? `
+                        ${formatHardwareInfo(fullNodeData) ? `
                         <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
-                            <strong>Hardware:</strong> ${fullNodeData.hardware_model}
+                            <strong>Hardware:</strong> ${formatHardwareInfo(fullNodeData)}
                         </div>` : ''}
                     </div>
                     
