@@ -95,9 +95,18 @@ body {
 }
 
 .panel-title {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+    background-color: rgba(45, 55, 72, 0.9);
+    padding: 5px 10px;
+    border-radius: 4px;
     font-weight: bold;
     color: #4fd1c7;
-    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 #map {
@@ -537,31 +546,23 @@ body {
     box-shadow: 0 0 0 2px rgba(79, 209, 199, 0.2);
 }
 
-/* Panel headers and fullscreen functionality */
-.panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px;
-    background-color: #4a5568;
-    border-radius: 8px 8px 0 0;
-    margin-bottom: 5px;
-}
+/* Fullscreen functionality */
 
 .fullscreen-btn {
     background: #2d3748;
     border: 1px solid #4fd1c7;
     color: #4fd1c7;
-    padding: 5px 8px;
-    border-radius: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 12px;
     transition: all 0.3s ease;
-    min-width: 30px;
-    height: 30px;
+    min-width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
+    line-height: 1;
 }
 
 .fullscreen-btn:hover {
@@ -583,14 +584,10 @@ body {
     grid-row: unset !important;
 }
 
-.fullscreen-mode .panel-header {
-    margin-bottom: 0;
-}
-
 .fullscreen-mode #map,
 .fullscreen-mode #network {
-    height: calc(100vh - 50px) !important;
-    border-radius: 0 0 8px 8px;
+    height: 100vh !important;
+    border-radius: 0;
 }
 
 /* Hide other elements when in fullscreen mode */
