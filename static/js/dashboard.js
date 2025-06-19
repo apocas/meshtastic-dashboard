@@ -12,10 +12,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize interactive search functionality
     initializeSearch();
     
-    // Setup modal close on Escape key
+    // Setup modal close and fullscreen exit on Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            closeSearchModal();
+            // Check if in fullscreen mode first
+            const fullscreenElement = document.querySelector('.fullscreen-mode');
+            if (fullscreenElement) {
+                const viewType = fullscreenElement.classList.contains('map-container') ? 'map' : 'graph';
+                toggleFullscreen(viewType);
+            } else {
+                // Otherwise close search modal
+                closeSearchModal();
+            }
         }
     });
     
@@ -1264,5 +1272,49 @@ function clearMapConnections() {
             }
         });
         connectionLines = {};
+    }
+}
+
+// Fullscreen functionality
+function toggleFullscreen(viewType) {
+    const body = document.body;
+    const container = viewType === 'map' ? document.querySelector('.map-container') : document.querySelector('.graph-container');
+    
+    if (container.classList.contains('fullscreen-mode')) {
+        // Exit fullscreen
+        container.classList.remove('fullscreen-mode');
+        body.classList.remove('has-fullscreen');
+        
+        // Update button text
+        const btn = container.querySelector('.fullscreen-btn');
+        btn.innerHTML = '⛶';
+        btn.title = 'Toggle Fullscreen';
+        
+        // Trigger resize events to ensure map/network resize properly
+        setTimeout(() => {
+            if (viewType === 'map' && map) {
+                map.invalidateSize();
+            } else if (viewType === 'graph' && network) {
+                network.fit();
+            }
+        }, 100);
+    } else {
+        // Enter fullscreen
+        container.classList.add('fullscreen-mode');
+        body.classList.add('has-fullscreen');
+        
+        // Update button text
+        const btn = container.querySelector('.fullscreen-btn');
+        btn.innerHTML = '⇱';
+        btn.title = 'Exit Fullscreen';
+        
+        // Trigger resize events to ensure map/network resize properly
+        setTimeout(() => {
+            if (viewType === 'map' && map) {
+                map.invalidateSize();
+            } else if (viewType === 'graph' && network) {
+                network.fit();
+            }
+        }, 100);
     }
 }
