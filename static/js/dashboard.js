@@ -450,8 +450,7 @@ function updateMapMarker(nodeData) {
                     ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
                 </div>
                 <div style="color: #e0e0e0; margin-bottom: 2px;">ID: !${nodeId}</div>
-                ${formatHardwareInfo(nodeData) ? `<div style="color: #e0e0e0; margin-bottom: 2px;">${formatHardwareInfo(nodeData)}</div>` : ''}
-                ${nodeData.battery_level ? `<div style="color: #e0e0e0; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
+                ${formatHardwareInfo(nodeData) ? `<div style="color: #e0e0e0; margin-bottom: 2px;">${formatHardwareInfo(nodeData)}</div>` : ''}                ${nodeData.battery_level ? `<div style="color: #e0e0e0; margin-bottom: 2px;">Battery: ${nodeData.battery_level > 100 ? 'PWD' : nodeData.battery_level + '%'}</div>` : ''}
                 ${nodeData.last_seen ? `<div style="color: #c0c0c0; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
             </div>
         `;
@@ -547,9 +546,8 @@ function updateMapMarker(nodeData) {
                 <div style="font-weight: bold; margin-bottom: 4px; color: #ffffff;">
                     ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
                 </div>
-                <div style="color: #e0e0e0; margin-bottom: 2px;">ID: !${nodeId}</div>
-                ${formatHardwareInfo(nodeData) ? `<div style="color: #e0e0e0; margin-bottom: 2px;">${formatHardwareInfo(nodeData)}</div>` : ''}
-                ${nodeData.battery_level ? `<div style="color: #e0e0e0; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
+                <div style="color: #e0e0e0; margin-bottom: 2px;">ID: !${nodeId}</div>                ${formatHardwareInfo(nodeData) ? `<div style="color: #e0e0e0; margin-bottom: 2px;">${formatHardwareInfo(nodeData)}</div>` : ''}
+                ${nodeData.battery_level ? `<div style="color: #e0e0e0; margin-bottom: 2px;">Battery: ${nodeData.battery_level > 100 ? 'PWD' : nodeData.battery_level + '%'}</div>` : ''}
                 ${nodeData.last_seen ? `<div style="color: #c0c0c0; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
             </div>
         `;
