@@ -231,15 +231,15 @@ def get_hardware_info(hw_model_id):
         hw_model_id (int): The hardware model ID
         
     Returns:
-        tuple: (hardware_model_name, hardware_vendor)
+        dict: Dictionary with 'model_name' and 'vendor' keys
     """
     if hw_model_id is None:
-        return "Unknown", "Unknown"
+        return {"model_name": "Unknown", "vendor": "Unknown"}
     
     hardware_model_name = HARDWARE_MODELS.get(hw_model_id, f"Unknown Model {hw_model_id}")
     hardware_vendor = HARDWARE_VENDORS.get(hw_model_id, "Unknown")
     
-    return hardware_model_name, hardware_vendor
+    return {"model_name": hardware_model_name, "vendor": hardware_vendor}
 
 def get_hardware_model_name(hw_model_id):
     """Get the hardware model name for a given ID."""
