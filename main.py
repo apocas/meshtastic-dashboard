@@ -380,24 +380,22 @@ def on_message(client, userdata, msg):
         except Exception as e:
             print(f"[⚠] Failed to emit packet update: {e}")
             
-        # Emit connection updates for packets with valid SNR/RSSI
+        # Emit node updates for both from and to nodes when we have valid connection data
+        # This allows the frontend to request updated connections for these nodes
         if (from_node != to_node and to_node != "ffffffff" and 
             packet_data.get('rx_snr') and packet_data.get('rx_rssi') and
             packet_data.get('rx_snr') != 0 and packet_data.get('rx_rssi') != 0):
             try:
                 with app.app_context():
-                    if hasattr(app, 'emit_connection_update'):
-                        connection_data = {
-                            'from_node': from_node,
-                            'to_node': to_node,
-                            'packet_count': 1,  # This will be aggregated by the frontend
-                            'avg_snr': packet_data.get('rx_snr'),
-                            'avg_rssi': packet_data.get('rx_rssi'),
-                            'last_seen': packet_data.get('timestamp')
-                        }
-                        app.emit_connection_update(connection_data)
+                    if hasattr(app, 'emit_node_update'):
+                        # Emit node updates for both nodes involved in the connection
+                        # Frontend will detect this and refresh connections for these nodes
+                        for node_id in [from_node, to_node]:
+                            node_data = db.get_node_by_id(node_id)
+                            if node_data:
+                                app.emit_node_update(node_data)
             except Exception as e:
-                print(f"[⚠] Failed to emit connection update: {e}")
+                print(f"[⚠] Failed to emit node updates for connection: {e}")
 
     except DecodeError as e:
         print(f"[⚠] Failed to parse Data: {e}")

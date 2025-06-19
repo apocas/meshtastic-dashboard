@@ -37,9 +37,42 @@ def get_positioned_nodes():
 
 @app.route('/api/connections')
 def get_connections():
-    """API endpoint to get all connections"""
+    """API endpoint to get connections with optional filtering
+    
+    Query parameters:
+        from_node: Filter connections from a specific node
+        to_node: Filter connections to a specific node
+        nodes: Comma-separated list of nodes (filters connections involving any of these nodes)
+        hours: Timeframe in hours to look back (default: 48, allowed: 12, 24, 48, 72)
+    """
     try:
-        connections = db.get_connections()
+        from_node = request.args.get('from_node')
+        to_node = request.args.get('to_node')
+        nodes = request.args.get('nodes')
+        
+        # Handle the hours parameter
+        hours = request.args.get('hours', '48')
+        try:
+            hours = int(hours)
+            # Validate allowed values
+            if hours not in [12, 24, 48, 72]:
+                hours = 48  # Default to 48 if invalid value
+        except (ValueError, TypeError):
+            hours = 48  # Default to 48 if invalid format
+        
+        # Handle the 'nodes' parameter for backward compatibility
+        if nodes:
+            # Parse comma-separated node IDs
+            node_list = [node_id.strip() for node_id in nodes.split(',') if node_id.strip()]
+            if not node_list:
+                return jsonify([])
+            
+            # Use the efficient database method
+            connections = db.get_connections(nodes=node_list, hours=hours)
+            return jsonify(connections)
+        
+        # Direct filtering by from_node and/or to_node
+        connections = db.get_connections(from_node=from_node, to_node=to_node, hours=hours)
         return jsonify(connections)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -89,25 +122,92 @@ def get_stats():
         nodes = db.get_nodes()
         positioned_nodes = db.get_nodes_with_position()
         connections = db.get_connections()
-        packets = db.get_recent_packets(1000)
+        total_packets = db.get_total_packet_count()
         
         stats = {
             'total_nodes': len(nodes),
             'active_connections': len(connections),
-            'recent_packets': len(packets),
+            'recent_packets': total_packets,
             'nodes_with_position': len(positioned_nodes)
         }
         return jsonify(stats)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def emit_node_update(node_data):
-    """Emit node update to connected clients"""
-    socketio.emit('node_update', node_data)
+@app.route('/api/nodes/neighbors/<node_id>')
+def get_node_neighbors(node_id):
+    """API endpoint to get neighbors of a specific node"""
+    try:
+        # Remove ! prefix if present
+        clean_node_id = node_id.lstrip('!')
+        
+        neighbors = db.get_node_neighbors(clean_node_id)
+        return jsonify(neighbors)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-def emit_connection_update(connection_data):
-    """Emit connection update to connected clients"""
-    socketio.emit('connection_update', connection_data)
+@app.route('/api/nodes/<node_id>/triangulate', methods=['POST'])
+def triangulate_single_node(node_id):
+    """API endpoint to manually trigger triangulation for a specific node"""
+    try:
+        # Remove ! prefix if present
+        clean_node_id = node_id.lstrip('!')
+        
+        result = db.triangulate_single_node(clean_node_id)
+        
+        if result:
+            # Emit node update to refresh the frontend
+            updated_node = db.get_node_by_id(clean_node_id)
+            if updated_node:
+                emit_node_update(updated_node)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Successfully triangulated position for node {clean_node_id}',
+                'result': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Could not triangulate position for node {clean_node_id}. Not enough positioned neighbors or other constraints not met.'
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search/nodes')
+def search_nodes():
+    """API endpoint to search for nodes by partial match in ID or names"""
+    try:
+        search_term = request.args.get('q', '').strip()
+        if len(search_term) < 2:
+            return jsonify([])  # Require at least 2 characters
+            
+        # Search for nodes matching the term
+        nodes = db.search_nodes(search_term)
+        return jsonify(nodes)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def emit_node_update(node_data):
+    """Emit node update to connected clients - only send node_id for efficiency"""
+    # Handle different input formats
+    node_id = None
+    
+    if isinstance(node_data, str):
+        # node_data is just a node_id string
+        node_id = node_data
+    elif isinstance(node_data, dict):
+        # node_data is a dictionary with node_id field
+        node_id = node_data.get('node_id')
+    else:
+        # node_data is an object with node_id attribute
+        node_id = getattr(node_data, 'node_id', None)
+    
+    if node_id:
+        socketio.emit('node_update', {'node_id': node_id})
+    else:
+        print(f"Warning: emit_node_update called with invalid node_data: {node_data}")
 
 def emit_packet_update(packet_data):
     """Emit packet update to connected clients"""
@@ -126,9 +226,10 @@ def handle_disconnect():
 
 # Make functions available globally for the MQTT processor
 app.emit_node_update = emit_node_update
-app.emit_connection_update = emit_connection_update
 app.emit_packet_update = emit_packet_update
 app.db = db
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv('PORT', 5000))
+    socketio.run(app, host=host, port=port, debug=True)
