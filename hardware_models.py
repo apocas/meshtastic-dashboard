@@ -1,187 +1,250 @@
-# Hardware Model Mapping for Meshtastic Devices
-# Based on the Meshtastic protobuf definitions
-# This mapping converts hw_model numeric IDs to human-readable device names
+"""
+Hardware model and vendor mapping for Meshtastic devices.
+Based on https://github.com/meshtastic/firmware/tree/master/src/mesh/generated/meshtastic/mesh.pb.h
+"""
 
+# Hardware model ID to human-readable name mapping
 HARDWARE_MODELS = {
     0: "UNSET",
-    1: "TLORA_V2",
-    2: "TLORA_V1", 
-    3: "TLORA_V2_1_1p6",
-    4: "TBEAM",
-    5: "HELTEC_V2_0",
-    6: "TBEAM0p7",
-    7: "T_ECHO",
-    8: "TLORA_V1_1p3",
+    1: "TLORA V2",
+    2: "TLORA V1",
+    3: "TLORA V2.1 1.6",
+    4: "T-Beam",
+    5: "Heltec V2.0",
+    6: "T-Beam V0.7",
+    7: "T-Echo",
+    8: "TLORA V1.3",
     9: "RAK4631",
-    10: "HELTEC_V2_1",
-    11: "HELTEC_V1",
-    12: "LILYGO_TBEAM_S3_CORE",
+    10: "Heltec V2.1",
+    11: "Heltec V1",
+    12: "T-Beam S3 Core",
     13: "RAK11200",
-    14: "NANO_G1",
-    15: "TLORA_V2_1_1p8",
-    16: "TLORA_T3_S3",
-    17: "NANOPILOT_G1",
-    18: "RAK11310",
-    19: "SENSELORA_RP2040",
-    20: "SENSELORA_S3",
-    21: "CANARYONE",
-    22: "RP2040_LORA",
-    25: "STATION_G1",
-    26: "RAK11200",
-    27: "LORA_RELAY_V1",
-    28: "NRF52840DK",
-    29: "PCA10059",
-    30: "HELTEC_V3",
-    31: "RAK3172",
-    32: "HELTEC_WSL_V3",
-    33: "BETAFPV_2400_TX_MICRO",
-    34: "BETAFPV_900_NANO_TX",
-    35: "LORA_RELAY_V2",
-    36: "LORA_TYPE",
-    37: "WISBLOCK_4631",
-    38: "RAK19003",
-    39: "RAK19001",
-    40: "SENSELORA_S3_MINI",
-    41: "HELTEC_WIRELESS_TRACKER",
-    42: "HELTEC_WIRELESS_PAPER",
-    43: "T_ECHO",
-    44: "ESP32_S3_PICO",
-    45: "OAK_SERIES_1",
-    46: "RADIOMASTER_900_BANDIT_NANO",
-    47: "HELTEC_HT62",
-    48: "UNPHONE",
-    49: "TDECK",
-    50: "PICOMPUTER_S3",
-    51: "HELTEC_HT62_V1p6",
-    52: "ESP32_C3_DIY_V1",
-    53: "ESP32_S3_DIY_V1",
-    54: "RADIOMASTER_900_BANDIT_PICO",
-    55: "HELTEC_CAPSULE_SENSOR_V3",
-    56: "HELTEC_VISION_MASTER_T190",
-    57: "HELTEC_VISION_MASTER_E213",
-    58: "HELTEC_VISION_MASTER_E290",
-    59: "CHATTER_2",
-    60: "RAK11310_USB",
-    61: "STATION_G2",
+    14: "Nano G1",
+    15: "TLORA V2.1 1.8",
+    16: "TLORA T3 S3",
+    17: "Nano G1 Explorer",
+    18: "Nano G2 Ultra",
+    19: "LoRa Type",
+    20: "WiPhone",
+    21: "WIO WM1110",
+    22: "RAK2560",
+    23: "Heltec HRU-3601",
+    24: "Heltec Wireless Bridge",
+    25: "Station G1",
+    26: "RAK11310",
+    27: "SenseLoRA RP2040",
+    28: "SenseLoRA S3",
+    29: "CanaryOne",
+    30: "RP2040 LoRa",
+    31: "Station G2",
+    32: "LoRa Relay V1",
+    33: "nRF52840DK",
+    34: "PPR",
+    35: "GenieBlocks",
+    36: "nRF52 Unknown",
+    37: "Portduino",
+    38: "Android Sim",
+    39: "DIY V1",
+    40: "nRF52840 PCA10059",
+    41: "DR Dev",
+    42: "M5Stack",
+    43: "Heltec V3",
+    44: "Heltec WSL V3",
+    45: "BetaFPV 2400 TX",
+    46: "BetaFPV 900 Nano TX",
+    47: "RPI Pico",
+    48: "Heltec Wireless Tracker",
+    49: "Heltec Wireless Paper",
+    50: "T-Deck",
+    51: "T-Watch S3",
+    52: "Picomputer S3",
+    53: "Heltec HT62",
+    54: "Ebyte ESP32 S3",
+    55: "ESP32 S3 Pico",
+    56: "Chatter 2",
+    57: "Heltec Wireless Paper V1.0",
+    58: "Heltec Wireless Tracker V1.0",
+    59: "unPhone",
+    60: "TD LoRaC",
+    61: "CDebyte EoRa S3",
+    62: "TWC Mesh V4",
+    63: "nRF52 ProMicro DIY",
+    64: "RadioMaster 900 Bandit Nano",
+    65: "Heltec Capsule Sensor V3",
+    66: "Heltec Vision Master T190",
+    67: "Heltec Vision Master E213",
+    68: "Heltec Vision Master E290",
+    69: "Heltec Mesh Node T114",
+    70: "SenseCap Indicator",
+    71: "Tracker T1000-E",
+    72: "RAK3172",
+    73: "WIO E5",
+    74: "RadioMaster 900 Bandit",
+    75: "ME25LS01 4Y10TD",
+    76: "RP2040 Feather RFM95",
+    77: "M5Stack Core Basic",
+    78: "M5Stack Core2",
+    79: "RPI Pico2",
+    80: "M5Stack CoreS3",
+    81: "Seeed XIAO S3",
+    82: "MS24SF1",
+    83: "TLora C6",
+    84: "WisMesh Tap",
+    85: "Routastic",
+    86: "Mesh Tab",
+    87: "MeshLink",
+    88: "XIAO nRF52 Kit",
+    89: "ThinkNode M1",
+    90: "ThinkNode M2",
+    91: "T-ETH Elite",
+    92: "Heltec Sensor Hub",
+    93: "Reserved Fried Chicken",
+    94: "Heltec Mesh Pocket",
+    95: "Seeed Solar Node",
+    96: "NomadStar Meteor Pro",
+    97: "CrowPanel",
+    98: "Link 32",
+    99: "Seeed Wio Tracker L1",
+    100: "Seeed Wio Tracker L1 E-Ink",
+    101: "Qwantz Tiny Arms",
+    102: "T-Deck Pro",
+    103: "T-LoRa Pager",
+    104: "GAT562 Mesh Trial Tracker",
+    255: "Private Hardware"
 }
 
-# Vendor mapping based on device names
+# Hardware vendor mapping based on model names and known manufacturers
 HARDWARE_VENDORS = {
-    # LilyGO/TTGO devices
-    "TLORA_V2": "LilyGO",
-    "TLORA_V1": "LilyGO", 
-    "TLORA_V2_1_1p6": "LilyGO",
-    "TBEAM": "LilyGO",
-    "TBEAM0p7": "LilyGO",
-    "T_ECHO": "LilyGO",
-    "TLORA_V1_1p3": "LilyGO",
-    "TLORA_V2_1_1p8": "LilyGO",
-    "TLORA_T3_S3": "LilyGO",
-    "LILYGO_TBEAM_S3_CORE": "LilyGO",
-    "TDECK": "LilyGO",
-    
-    # Heltec devices
-    "HELTEC_V2_0": "Heltec",
-    "HELTEC_V2_1": "Heltec",
-    "HELTEC_V1": "Heltec",
-    "HELTEC_V3": "Heltec",
-    "HELTEC_WSL_V3": "Heltec",
-    "HELTEC_WIRELESS_TRACKER": "Heltec",
-    "HELTEC_WIRELESS_PAPER": "Heltec",
-    "HELTEC_HT62": "Heltec",
-    "HELTEC_HT62_V1p6": "Heltec",
-    "HELTEC_CAPSULE_SENSOR_V3": "Heltec",
-    "HELTEC_VISION_MASTER_T190": "Heltec",
-    "HELTEC_VISION_MASTER_E213": "Heltec",
-    "HELTEC_VISION_MASTER_E290": "Heltec",
-    
-    # RAK Wireless devices
-    "RAK4631": "RAK Wireless",
-    "RAK11200": "RAK Wireless",
-    "RAK11310": "RAK Wireless",
-    "RAK3172": "RAK Wireless",
-    "RAK19003": "RAK Wireless",
-    "RAK19001": "RAK Wireless",
-    "RAK11310_USB": "RAK Wireless",
-    "WISBLOCK_4631": "RAK Wireless",
-    
-    # SenseCAP devices
-    "SENSELORA_RP2040": "SenseCAP",
-    "SENSELORA_S3": "SenseCAP",
-    "SENSELORA_S3_MINI": "SenseCAP",
-    
-    # Other vendors
-    "NANO_G1": "Nano",
-    "NANOPILOT_G1": "Nano",
-    "CANARYONE": "Canary",
-    "RP2040_LORA": "Generic",
-    "STATION_G1": "Station",
-    "STATION_G2": "Station",
-    "LORA_RELAY_V1": "Generic",
-    "LORA_RELAY_V2": "Generic",
-    "NRF52840DK": "Nordic",
-    "PCA10059": "Nordic",
-    "BETAFPV_2400_TX_MICRO": "BetaFPV",
-    "BETAFPV_900_NANO_TX": "BetaFPV",
-    "ESP32_S3_PICO": "Generic",
-    "OAK_SERIES_1": "Oak",
-    "RADIOMASTER_900_BANDIT_NANO": "RadioMaster",
-    "RADIOMASTER_900_BANDIT_PICO": "RadioMaster",
-    "UNPHONE": "unPhone",
-    "PICOMPUTER_S3": "PiComputer",
-    "ESP32_C3_DIY_V1": "DIY",
-    "ESP32_S3_DIY_V1": "DIY",
-    "CHATTER_2": "Chatter",
-    "LORA_TYPE": "Generic",
-    "UNSET": "Unknown",
+    0: "Unknown",
+    1: "LilyGO",
+    2: "LilyGO", 
+    3: "LilyGO",
+    4: "LilyGO",
+    5: "Heltec",
+    6: "LilyGO",
+    7: "LilyGO",
+    8: "LilyGO",
+    9: "RAK Wireless",
+    10: "Heltec",
+    11: "Heltec",
+    12: "LilyGO",
+    13: "RAK Wireless",
+    14: "B&Q Consulting",
+    15: "LilyGO",
+    16: "LilyGO",
+    17: "B&Q Consulting",
+    18: "B&Q Consulting",
+    19: "LoRaType",
+    20: "WiPhone",
+    21: "Seeed Studio",
+    22: "RAK Wireless",
+    23: "Heltec",
+    24: "Heltec",
+    25: "B&Q Consulting",
+    26: "RAK Wireless",
+    27: "Makerfabs",
+    28: "Makerfabs",
+    29: "Canary Radio",
+    30: "Waveshare",
+    31: "B&Q Consulting",
+    32: "Unknown",
+    33: "Nordic",
+    34: "Unknown",
+    35: "GenieBlocks",
+    36: "Nordic",
+    37: "Linux",
+    38: "Android",
+    39: "DIY",
+    40: "Nordic",
+    41: "Disaster Radio",
+    42: "M5Stack",
+    43: "Heltec",
+    44: "Heltec",
+    45: "BetaFPV",
+    46: "BetaFPV",
+    47: "Raspberry Pi",
+    48: "Heltec",
+    49: "Heltec",
+    50: "LilyGO",
+    51: "LilyGO",
+    52: "Bobricius",
+    53: "Heltec",
+    54: "Ebyte",
+    55: "Waveshare",
+    56: "CircuitMess",
+    57: "Heltec",
+    58: "Heltec",
+    59: "unPhone",
+    60: "Teledatics",
+    61: "CDebyte",
+    62: "TWC",
+    63: "DIY",
+    64: "RadioMaster",
+    65: "Heltec",
+    66: "Heltec",
+    67: "Heltec",
+    68: "Heltec",
+    69: "Heltec",
+    70: "Seeed Studio",
+    71: "Seeed Studio",
+    72: "RAK Wireless",
+    73: "Seeed Studio",
+    74: "RadioMaster",
+    75: "Minewsemi",
+    76: "Adafruit",
+    77: "M5Stack",
+    78: "M5Stack",
+    79: "Raspberry Pi",
+    80: "M5Stack",
+    81: "Seeed Studio",
+    82: "Unknown",
+    83: "LilyGO",
+    84: "RAK Wireless",
+    85: "Routastic",
+    86: "Mesh Tab",
+    87: "LoraItalia",
+    88: "Seeed Studio",
+    89: "Elecrow",
+    90: "Elecrow",
+    91: "LilyGO",
+    92: "Heltec",
+    93: "Reserved",
+    94: "Heltec",
+    95: "Seeed Studio",
+    96: "NomadStar",
+    97: "Elecrow",
+    98: "LilyGO",
+    99: "Seeed Studio",
+    100: "Seeed Studio",
+    101: "Reserved",
+    102: "LilyGO",
+    103: "LilyGO",
+    104: "GAT562",
+    255: "Private"
 }
-
-def get_hardware_model_name(hw_model_id):
-    """
-    Get the human-readable hardware model name from the numeric ID.
-    
-    Args:
-        hw_model_id (int): The numeric hardware model ID
-    
-    Returns:
-        str: Human-readable hardware model name or "Unknown" if not found
-    """
-    if hw_model_id is None:
-        return "Unknown"
-    
-    return HARDWARE_MODELS.get(int(hw_model_id), f"Unknown ({hw_model_id})")
-
-def get_hardware_vendor(hw_model_id):
-    """
-    Get the vendor name from the hardware model ID.
-    
-    Args:
-        hw_model_id (int): The numeric hardware model ID
-    
-    Returns:
-        str: Vendor name or "Unknown" if not found
-    """
-    if hw_model_id is None:
-        return "Unknown"
-    
-    model_name = get_hardware_model_name(hw_model_id)
-    return HARDWARE_VENDORS.get(model_name, "Unknown")
 
 def get_hardware_info(hw_model_id):
     """
-    Get complete hardware information including model name and vendor.
+    Get hardware model name and vendor for a given hardware model ID.
     
     Args:
-        hw_model_id (int): The numeric hardware model ID
-    
+        hw_model_id (int): The hardware model ID
+        
     Returns:
-        dict: Dictionary containing model_name, vendor, and original_id
+        tuple: (hardware_model_name, hardware_vendor)
     """
-    model_name = get_hardware_model_name(hw_model_id)
-    vendor = get_hardware_vendor(hw_model_id)
+    if hw_model_id is None:
+        return "Unknown", "Unknown"
     
-    return {
-        "model_name": model_name,
-        "vendor": vendor,
-        "original_id": hw_model_id
-    }
+    hardware_model_name = HARDWARE_MODELS.get(hw_model_id, f"Unknown Model {hw_model_id}")
+    hardware_vendor = HARDWARE_VENDORS.get(hw_model_id, "Unknown")
+    
+    return hardware_model_name, hardware_vendor
+
+def get_hardware_model_name(hw_model_id):
+    """Get the hardware model name for a given ID."""
+    return HARDWARE_MODELS.get(hw_model_id, f"Unknown Model {hw_model_id}")
+
+def get_hardware_vendor(hw_model_id):
+    """Get the hardware vendor for a given ID."""
+    return HARDWARE_VENDORS.get(hw_model_id, "Unknown")
