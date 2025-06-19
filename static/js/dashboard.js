@@ -206,7 +206,9 @@ function loadInitialData() {
             }, 100);
             
             // Load connections after nodes are loaded and markers are created
-            return fetch('/api/connections');
+            const timeframeSelect = document.getElementById('timeframeSelect');
+            const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
+            return fetch(`/api/connections?hours=${selectedHours}`);
         })
         .then(response => response.json())
         .then(data => {
@@ -1192,4 +1194,75 @@ function triangulateNode(nodeId) {
         button.style.backgroundColor = '#ecc94b';
         button.style.cursor = 'pointer';
     });
+}
+
+// Function to update the timeframe for displayed connections
+function updateTimeframe() {
+    const timeframeSelect = document.getElementById('timeframeSelect');
+    const selectedHours = timeframeSelect.value;
+    
+    console.log(`Updating connections for last ${selectedHours} hours`);
+    
+    // Reload connections with new timeframe
+    loadConnections(selectedHours);
+}
+
+// Function to load connections with specified timeframe
+function loadConnections(hours = 48) {
+    // Load connections with specified timeframe
+    fetch(`/api/connections?hours=${hours}`)
+        .then(response => response.json())
+        .then(data => {
+            // Clear existing connections
+            if (typeof vis !== 'undefined' && edges) {
+                edges.clear();
+            }
+            clearMapConnections();
+            
+            // Update with new connections
+            data.forEach(connection => updateConnection(connection));
+            
+            // Force redraw all map connections
+            setTimeout(() => {
+                redrawAllMapConnections();
+            }, 200);
+        })
+        .catch(error => {
+            console.error('Error loading connections:', error);
+        });
+}
+
+function updateNetworkConnections(connections) {
+    // Clear existing network connections
+    if (typeof vis !== 'undefined' && edges) {
+        edges.clear();
+    }
+    
+    // Add new connections to network
+    connections.forEach(connection => updateConnection(connection));
+}
+
+function updateMapConnections(connections) {
+    // Clear existing map connections
+    clearMapConnections();
+    
+    // Add new connections to map
+    connections.forEach(connection => updateConnection(connection));
+    
+    // Redraw all map connections
+    setTimeout(() => {
+        redrawAllMapConnections();
+    }, 200);
+}
+
+function clearMapConnections() {
+    // Remove all connection lines from map
+    if (typeof mapConnectionLines !== 'undefined' && mapConnectionLines) {
+        Object.values(mapConnectionLines).forEach(line => {
+            if (map.hasLayer(line)) {
+                map.removeLayer(line);
+            }
+        });
+        mapConnectionLines = {};
+    }
 }

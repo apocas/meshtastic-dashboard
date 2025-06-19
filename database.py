@@ -207,7 +207,7 @@ class MeshtasticDB:
                 ORDER BY last_seen DESC
             ''').fetchall()]
     
-    def get_connections(self, from_node=None, to_node=None, nodes=None):
+    def get_connections(self, from_node=None, to_node=None, nodes=None, hours=72):
         """Get direct RF connections between nodes based on actual radio reception
         
         A connection represents direct RF communication where:
@@ -219,12 +219,13 @@ class MeshtasticDB:
             from_node: Optional filter for specific transmitting node
             to_node: Optional filter for specific receiving node  
             nodes: Optional list of nodes to filter connections involving any of them
+            hours: Timeframe in hours to look back (default: 72)
         """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             
             # Build the base query - focus on direct RF reception
-            base_query = '''
+            base_query = f'''
                 SELECT 
                     CASE 
                         WHEN from_node LIKE '!%' THEN SUBSTR(from_node, 2)
@@ -256,8 +257,8 @@ class MeshtasticDB:
                     AND from_node != gateway_id
                     -- Exclude broadcast packets
                     AND to_node != 'ffffffff'
-                    -- Recent packets only (last 72 hours)
-                    AND datetime(timestamp) > datetime('now', '-72 hours')
+                    -- Recent packets only (configurable timeframe)
+                    AND datetime(timestamp) > datetime('now', '-{hours} hours')
                     -- Exclude diagnostic packets
                     AND (payload_type IS NULL OR payload_type != 'traceroute')
                     -- Focus on packets likely to indicate neighbor relationships

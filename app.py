@@ -43,11 +43,22 @@ def get_connections():
         from_node: Filter connections from a specific node
         to_node: Filter connections to a specific node
         nodes: Comma-separated list of nodes (filters connections involving any of these nodes)
+        hours: Timeframe in hours to look back (default: 48, allowed: 24, 48, 72)
     """
     try:
         from_node = request.args.get('from_node')
         to_node = request.args.get('to_node')
         nodes = request.args.get('nodes')
+        
+        # Handle the hours parameter
+        hours = request.args.get('hours', '48')
+        try:
+            hours = int(hours)
+            # Validate allowed values
+            if hours not in [24, 48, 72]:
+                hours = 48  # Default to 48 if invalid value
+        except (ValueError, TypeError):
+            hours = 48  # Default to 48 if invalid format
         
         # Handle the 'nodes' parameter for backward compatibility
         if nodes:
@@ -57,11 +68,11 @@ def get_connections():
                 return jsonify([])
             
             # Use the efficient database method
-            connections = db.get_connections(nodes=node_list)
+            connections = db.get_connections(nodes=node_list, hours=hours)
             return jsonify(connections)
         
         # Direct filtering by from_node and/or to_node
-        connections = db.get_connections(from_node=from_node, to_node=to_node)
+        connections = db.get_connections(from_node=from_node, to_node=to_node, hours=hours)
         return jsonify(connections)
     except Exception as e:
         return jsonify({'error': str(e)}), 500

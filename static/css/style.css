@@ -513,3 +513,32 @@ body {
 .leaflet-tooltip-right:before {
     border-right-color: #4a5568 !important;
 }
+
+.timeframe-selector {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timeframe-selector label {
+    color: #e2e8f0;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.timeframe-select {
+    padding: 4px 8px;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    background-color: #1a202c;
+    color: #e2e8f0;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.timeframe-select:focus {
+    outline: none;
+    border-color: #4fd1c7;
+    box-shadow: 0 0 0 2px rgba(79, 209, 199, 0.2);
+}
