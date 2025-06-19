@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import os
 from datetime import datetime
 import threading
 import math
@@ -184,8 +185,7 @@ class MeshtasticDB:
                     packet_data.get('rx_rssi'),
                     packet_data.get('payload_type'),
                     json.dumps(packet_data.get('payload_data', {})),
-                    packet_data.get('gateway_id')
-                ))
+                    packet_data.get('gateway_id')                ))
                 conn.commit()
     
     def get_nodes(self):
@@ -206,8 +206,8 @@ class MeshtasticDB:
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL
                 ORDER BY last_seen DESC
             ''').fetchall()]
-    
-    def get_connections(self, from_node=None, to_node=None, nodes=None, hours=72):
+
+    def get_connections(self, from_node=None, to_node=None, nodes=None, hours=None):
         """Get direct RF connections between nodes based on actual radio reception
         
         A connection represents direct RF communication where:
@@ -219,8 +219,12 @@ class MeshtasticDB:
             from_node: Optional filter for specific transmitting node
             to_node: Optional filter for specific receiving node  
             nodes: Optional list of nodes to filter connections involving any of them
-            hours: Timeframe in hours to look back (default: 72)
+            hours: Timeframe in hours to look back (default: 72 or LOOK_BACK env var)
         """
+        # Use environment variable LOOK_BACK if set, otherwise default to 72
+        if hours is None:
+            hours = int(os.getenv('LOOK_BACK', 72))
+        
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             

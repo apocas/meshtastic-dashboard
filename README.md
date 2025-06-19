@@ -76,6 +76,7 @@ The application supports the following environment variables:
 - `MQTT_TOPIC` - MQTT topic to subscribe to (required)
 - `HOST` - Host/IP address to bind the web server to (optional, defaults to 0.0.0.0)
 - `PORT` - Port for the web dashboard (optional, defaults to 5000)
+- `LOOK_BACK` - Hours to look back for connection data (optional, defaults to 72)
 
 You can set the host and port by adding them to your `.env` file:
 ```
@@ -85,8 +86,19 @@ PORT=8080
 
 Or by setting them when running the application:
 ```bash
-HOST=127.0.0.1 PORT=8080 uv run python run_dashboard.py
+HOST=127.0.0.1 PORT=8080 LOOK_BACK=48 uv run python run_dashboard.py
 ```
+
+#### LOOK_BACK Configuration
+
+The `LOOK_BACK` environment variable controls how far back in time the system looks when determining node connections:
+
+- **Default**: 72 hours (3 days)
+- **Purpose**: Determines the time window for analyzing packet history to establish connections between nodes
+- **Impact**: 
+  - Shorter values (24-48 hours) show only recent connections, useful for real-time network monitoring
+  - Longer values (72+ hours) show historical connections, better for network analysis and topology mapping
+- **Example**: Setting `LOOK_BACK=24` will only show connections based on packets from the last 24 hours
 
 **Note:** Using `HOST=0.0.0.0` (default) binds to all network interfaces, making the dashboard accessible from other devices on your network. Use `HOST=127.0.0.1` or `HOST=localhost` to restrict access to the local machine only.
 
