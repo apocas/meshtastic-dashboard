@@ -43,7 +43,7 @@ def get_connections():
         from_node: Filter connections from a specific node
         to_node: Filter connections to a specific node
         nodes: Comma-separated list of nodes (filters connections involving any of these nodes)
-        hours: Timeframe in hours to look back (default: 48, allowed: 24, 48, 72)
+        hours: Timeframe in hours to look back (default: 48, allowed: 12, 24, 48, 72)
     """
     try:
         from_node = request.args.get('from_node')
@@ -55,7 +55,7 @@ def get_connections():
         try:
             hours = int(hours)
             # Validate allowed values
-            if hours not in [24, 48, 72]:
+            if hours not in [12, 24, 48, 72]:
                 hours = 48  # Default to 48 if invalid value
         except (ValueError, TypeError):
             hours = 48  # Default to 48 if invalid format

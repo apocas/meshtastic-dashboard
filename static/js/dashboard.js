@@ -600,7 +600,7 @@ function redrawMapConnectionsForNode(nodeId) {
                             <b>Connection</b><br>
                             From: ${edge.from.slice(-4)}<br>
                             To: ${edge.to.slice(-4)}<br>
-                            ${edge.title || ''}
+                            ${edge.title ? edge.title.replace(/\n/g, '<br>') : ''}
                         `);
                         
                         connectionLines[edgeId] = line;
@@ -639,7 +639,7 @@ function redrawAllMapConnections() {
                 
                 line.bindPopup(`
                     Connection: ${edge.from.slice(-4)} → ${edge.to.slice(-4)}<br>
-                    ${edge.title || 'No additional info'}
+                    ${edge.title ? edge.title.replace(/\n/g, '<br>') : 'No additional info'}
                 `);
                 
                 connectionLines[edgeId] = line;
@@ -704,7 +704,7 @@ function updateConnection(connectionData) {
             from: fromNodeId,
             to: toNodeId,
             label: `${connectionData.packet_count}`,
-            title: `Packets: ${connectionData.packet_count}\nAvg SNR: ${connectionData.avg_snr?.toFixed(1) || 'N/A'}\nAvg RSSI: ${connectionData.avg_rssi || 'N/A'}`
+            title: `Packets: ${connectionData.packet_count}\nAvg SNR: ${connectionData.avg_snr?.toFixed(1) || 'N/A'}\nAvg RSSI: ${connectionData.avg_rssi || 'N/A'}\nLast seen: ${new Date(connectionData.last_seen).toLocaleString()}`
         };
         
         if (edges.get(edgeId)) {
