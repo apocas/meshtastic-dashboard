@@ -9,15 +9,8 @@ let pendingConnectionUpdates = new Set(); // Track nodes that need connection up
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded');
     
-    // Setup search input event listener
-    const searchInput = document.getElementById('nodeSearchInput');
-    if (searchInput) {
-        searchInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                searchNode();
-            }
-        });
-    }
+    // Initialize interactive search functionality
+    initializeSearch();
     
     // Setup modal close on Escape key
     document.addEventListener('keydown', function(e) {
@@ -821,215 +814,133 @@ function highlightNode(nodeId) {
     }
 }
 
-// Search functionality
-async function searchNode() {
-    const input = document.getElementById('nodeSearchInput');
-    const modal = document.getElementById('searchModal');
-    const resultsDiv = document.getElementById('searchResults');
-    const searchTerm = input.value.trim();
+// Interactive search functionality
+function initializeSearch() {
+    const searchInput = document.getElementById('nodeSearchInput');
+    const searchDropdown = document.getElementById('searchDropdown');
+    let searchTimeout;
     
-    if (!searchTerm) {
-        alert('Please enter a node ID to search');
-        return;
-    }
-    
-    // Show modal and loading message
-    modal.style.display = 'block';
-    resultsDiv.innerHTML = '<div class="search-message">🔍 Searching...</div>';
-    
-    try {
-        // Search for the node
-        const nodeResponse = await fetch(`/api/search/node/${encodeURIComponent(searchTerm)}`);
+    // Live search as user types
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.trim();
         
-        if (!nodeResponse.ok) {
-            if (nodeResponse.status === 404) {
-                resultsDiv.innerHTML = '<div class="search-message">❌ Node not found</div>';
-            } else {
-                resultsDiv.innerHTML = '<div class="search-message">❌ Error searching for node</div>';
-            }
+        // Clear previous timeout
+        clearTimeout(searchTimeout);
+        
+        if (searchTerm.length < 2) {
+            hideSearchDropdown();
             return;
         }
         
-        const nodeData = await nodeResponse.json();
-        
-        // Get packets for this node
-        const packetsResponse = await fetch(`/api/packets/node/${encodeURIComponent(searchTerm)}`);
-        let packets = [];
-        if (packetsResponse.ok) {
-            packets = await packetsResponse.json();
+        // Debounce search by 300ms
+        searchTimeout = setTimeout(() => {
+            performLiveSearch(searchTerm);
+        }, 300);
+    });
+    
+    // Handle Enter key
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const firstResult = searchDropdown.querySelector('.search-result-item[data-node-id]');
+            if (firstResult) {
+                selectSearchResult(firstResult.dataset.nodeId);
+            }
+        } else if (e.key === 'Escape') {
+            hideSearchDropdown();
+        }
+    });
+    
+    // Hide dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.search-container')) {
+            hideSearchDropdown();
+        }
+    });
+}
+
+async function performLiveSearch(searchTerm) {
+    const searchDropdown = document.getElementById('searchDropdown');
+    
+    try {
+        const response = await fetch(`/api/search/nodes?q=${encodeURIComponent(searchTerm)}`);
+        if (!response.ok) {
+            hideSearchDropdown();
+            return;
         }
         
-        // Display results
-        displaySearchResults(nodeData, packets);
-        
-        // Highlight the node on map and graph
-        highlightSearchedNode(nodeData.node_id);
+        const results = await response.json();
+        displaySearchDropdown(results);
         
     } catch (error) {
-        console.error('Search error:', error);
-        resultsDiv.innerHTML = '<div class="search-message">❌ Error occurred during search</div>';
+        console.error('Live search error:', error);
+        hideSearchDropdown();
     }
 }
 
-function closeSearchModal() {
-    const modal = document.getElementById('searchModal');
-    modal.style.display = 'none';
-}
-
-// Close modal when clicking outside of it
-window.onclick = function(event) {
-    const modal = document.getElementById('searchModal');
-    if (event.target === modal) {
-        closeSearchModal();
-    }
-}
-
-function displaySearchResults(nodeData, packets) {
-    const resultsDiv = document.getElementById('searchResults');
+function displaySearchDropdown(results) {
+    const searchDropdown = document.getElementById('searchDropdown');
     
-    // Format node information
-    const hasPosition = nodeData.latitude && nodeData.longitude;
-    const lastSeen = nodeData.last_seen ? new Date(nodeData.last_seen).toLocaleString() : 'Never';
-    
-    let nodeInfo = `
-        <div class="search-result-section">
-            <h3>🔍 Node Details</h3>
-            <div class="node-details">
-                <div class="detail-row">
-                    <span class="detail-label">ID:</span>
-                    <span class="detail-value">!${nodeData.node_id}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Long Name:</span>
-                    <span class="detail-value">${nodeData.long_name || 'Unknown'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Short Name:</span>
-                    <span class="detail-value">${nodeData.short_name || 'Unknown'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Hardware:</span>
-                    <span class="detail-value">${nodeData.hardware_model || 'Unknown'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Position:</span>
-                    <span class="detail-value">${hasPosition ? 
-                        `${nodeData.latitude.toFixed(6)}, ${nodeData.longitude.toFixed(6)}` : 
-                        'No position data'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Last Seen:</span>
-                    <span class="detail-value">${lastSeen}</span>
-                </div>
-                ${nodeData.battery_level ? `
-                <div class="detail-row">
-                    <span class="detail-label">Battery:</span>
-                    <span class="detail-value">${nodeData.battery_level}%</span>
-                </div>` : ''}
-                ${nodeData.snr ? `
-                <div class="detail-row">
-                    <span class="detail-label">SNR:</span>
-                    <span class="detail-value">${nodeData.snr} dB</span>
-                </div>` : ''}
-                ${nodeData.rssi ? `
-                <div class="detail-row">
-                    <span class="detail-label">RSSI:</span>
-                    <span class="detail-value">${nodeData.rssi} dBm</span>
-                </div>` : ''}
-            </div>
-        </div>
-    `;
-    
-    // Format recent packets/messages
-    let packetsInfo = `
-        <div class="search-result-section">
-            <h3>📡 Recent Messages (Last 24 Hours)</h3>
-            <div class="packets-list">
-    `;
-    
-    if (packets.length === 0) {
-        packetsInfo += '<div class="no-packets">No messages found in the last 24 hours</div>';
-    } else {
-        packets.forEach(packet => {
-            const timestamp = new Date(packet.timestamp).toLocaleString();
-            const portTypeMap = {
-                '1': 'TEXT_MESSAGE_APP',
-                '3': 'POSITION_APP',
-                '4': 'NODEINFO_APP',
-                '67': 'TELEMETRY_APP',
-                '71': 'NEIGHBORINFO_APP'
-            };
-            const portName = portTypeMap[packet.port_num] || `Port ${packet.port_num}`;
-            
-            packetsInfo += `
-                <div class="packet-item">
-                    <div class="packet-header">
-                        <span class="packet-time">${timestamp}</span>
-                        <span class="packet-type">${portName}</span>
-                    </div>
-                    <div class="packet-route">
-                        From: <strong>!${packet.from_node}</strong> → To: <strong>!${packet.to_node}</strong>
-                        ${packet.gateway_id && packet.gateway_id !== packet.from_node && packet.gateway_id !== packet.to_node ? 
-                            ` via <strong>!${packet.gateway_id}</strong>` : ''}
-                    </div>
-                    ${packet.channel ? `<div class="packet-channel">Channel: ${packet.channel}</div>` : ''}
-                    ${(packet.snr || packet.rssi) ? `
-                        <div class="packet-signal">
-                            ${packet.snr ? `SNR: ${packet.snr} dB ` : ''}
-                            ${packet.rssi ? `RSSI: ${packet.rssi} dBm` : ''}
-                        </div>
-                    ` : ''}
-                    ${packet.payload_data && packet.port_num === '1' ? `
-                        <div class="packet-payload">${packet.payload_data}</div>
-                    ` : ''}
-                </div>
-            `;
-        });
+    if (results.length === 0) {
+        searchDropdown.innerHTML = '<div class="search-result-item"><div class="search-result-secondary">No results found</div></div>';
+        searchDropdown.style.display = 'block';
+        return;
     }
     
-    packetsInfo += '</div></div>';
-    
-    resultsDiv.innerHTML = nodeInfo + packetsInfo;
-}
-
-function highlightSearchedNode(nodeId) {
-    // Highlight on map if node has position
-    if (mapMarkers[nodeId]) {
-        mapMarkers[nodeId].openPopup();
-        map.setView(mapMarkers[nodeId].getLatLng(), 12);
-    }
-    
-    // Highlight on network graph
-    if (network && nodes) {
-        const nodeExists = nodes.get(nodeId);
-        if (nodeExists) {
-            network.selectNodes([nodeId]);
-            network.focus(nodeId, {
-                scale: 1.5,
-                animation: {
-                    duration: 1000,
-                    easingFunction: 'easeInOutQuad'
-                }
+    // Helper function to decode Unicode escape sequences
+    function decodeUnicodeEscapes(str) {
+        if (!str || typeof str !== 'string') return str;
+        try {
+            return str.replace(/\\u([0-9a-fA-F]{4})/g, (match, code) => {
+                return String.fromCharCode(parseInt(code, 16));
             });
+        } catch (e) {
+            return str;
         }
     }
+    
+    const html = results.map(node => {
+        const decodedLongName = decodeUnicodeEscapes(node.long_name);
+        const decodedShortName = decodeUnicodeEscapes(node.short_name);
+        
+        const primaryText = decodedLongName || decodedShortName || node.node_id;
+        const secondaryText = decodedShortName && decodedLongName !== decodedShortName ? decodedShortName : '';
+        const hasPosition = node.latitude != null && node.longitude != null;
+        const positionText = hasPosition ? `📍 ${node.position_quality || 'positioned'}` : '📍 no position';
+        
+        return `
+            <div class="search-result-item" data-node-id="${node.node_id}" onclick="selectSearchResult('${node.node_id}')">
+                <div class="search-result-primary">${primaryText}</div>
+                ${secondaryText ? `<div class="search-result-secondary">${secondaryText}</div>` : ''}
+                <div class="search-result-tertiary">ID: ${node.node_id} • ${positionText}</div>
+            </div>
+        `;
+    }).join('');
+    
+    searchDropdown.innerHTML = html;
+    searchDropdown.style.display = 'block';
 }
 
-function refreshPendingConnections() {
-    if (pendingConnectionUpdates.size === 0) return;
+function hideSearchDropdown() {
+    const searchDropdown = document.getElementById('searchDropdown');
+    searchDropdown.style.display = 'none';
+}
+
+function selectSearchResult(nodeId) {
+    const searchInput = document.getElementById('nodeSearchInput');
     
-    const nodeIds = Array.from(pendingConnectionUpdates).join(',');
-    console.log('Refreshing connections for nodes:', nodeIds);
-    pendingConnectionUpdates.clear();
+    // Set the input value to the selected node ID
+    searchInput.value = nodeId;
     
-    // Fetch connections for the updated nodes using query parameter
-    fetch(`/api/connections?nodes=${nodeIds}`)
-        .then(response => response.json())
-        .then(connections => {
-            console.log(`Found ${connections.length} connections for nodes ${nodeIds}`);
-            connections.forEach(connection => updateConnection(connection));
-        })
-        .catch(error => console.error('Error fetching connections for nodes:', error));
+    // Hide dropdown
+    hideSearchDropdown();
+    
+    // Focus on the node in both graph and map
+    focusOnNodeInGraph(nodeId);
+    focusOnNodeInMap(nodeId);
+    
+    // Show node popup
+    showNodePopup(nodeId);
 }
 
 // Function to trigger position triangulation

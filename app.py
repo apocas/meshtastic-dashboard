@@ -163,6 +163,20 @@ def triangulate_single_node(node_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/search/nodes')
+def search_nodes():
+    """API endpoint to search for nodes by partial match in ID or names"""
+    try:
+        search_term = request.args.get('q', '').strip()
+        if len(search_term) < 2:
+            return jsonify([])  # Require at least 2 characters
+            
+        # Search for nodes matching the term
+        nodes = db.search_nodes(search_term)
+        return jsonify(nodes)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 def emit_node_update(node_data):
     """Emit node update to connected clients - only send node_id for efficiency"""

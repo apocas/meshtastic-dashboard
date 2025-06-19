@@ -22,8 +22,11 @@
             </div>
             <div class="header-center">
                 <div class="header-search">
-                    <input type="text" class="header-search-input" id="nodeSearchInput" placeholder="Search node ID (e.g., da639854)...">
-                    <button class="header-search-button" onclick="searchNode()">🔍 Search</button>
+                    <div class="search-container">
+                        <input type="text" class="header-search-input" id="nodeSearchInput" placeholder="Search node ID or name..." autocomplete="off">
+                        <button class="header-search-button" onclick="searchNode()">🔍 Search</button>
+                        <div class="search-dropdown" id="searchDropdown"></div>
+                    </div>
                 </div>
             </div>
             <div class="header-right">

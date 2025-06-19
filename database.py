@@ -553,3 +553,30 @@ class MeshtasticDB:
         except Exception as e:
             print(f"[❌] Error during triangulation for {node_id}: {e}")
             return None
+    
+    def search_nodes(self, search_term):
+        """Search for nodes by partial match in node_id, long_name, or short_name"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            
+            # Search in node_id, long_name, and short_name
+            search_pattern = f'%{search_term}%'
+            
+            return [dict(row) for row in conn.execute('''
+                SELECT node_id, long_name, short_name, latitude, longitude, position_quality, last_seen
+                FROM nodes 
+                WHERE node_id LIKE ? 
+                   OR long_name LIKE ? 
+                   OR short_name LIKE ?
+                ORDER BY 
+                    CASE 
+                        WHEN node_id = ? THEN 1
+                        WHEN node_id LIKE ? THEN 2
+                        WHEN long_name LIKE ? THEN 3
+                        WHEN short_name LIKE ? THEN 4
+                        ELSE 5
+                    END,
+                    last_seen DESC
+                LIMIT 10
+            ''', (search_pattern, search_pattern, search_pattern, 
+                  search_term, f'{search_term}%', f'{search_term}%', f'{search_term}%')).fetchall()]
