@@ -202,7 +202,7 @@ function loadInitialData() {
     .then(data => {
       // Fetch nodes data and filter connections by distance before processing them
       const distanceLimitSelect = document.getElementById('distanceLimitSelect');
-      const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 500;
+      const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
       return fetchNodesAndFilterConnections(data, selectedDistance);
     })
     .then(filteredConnections => {
@@ -753,7 +753,7 @@ function updateDistanceLimit() {
 }
 
 // Function to load connections with specified timeframe and distance limit
-function loadConnections(hours = 48, maxDistanceKm = 500) {
+function loadConnections(hours = 48, maxDistanceKm = 250) {
   // Load connections with specified timeframe
   fetch(`/api/connections?hours=${hours}`)
     .then(response => response.json())
@@ -1027,17 +1027,17 @@ window.addEventListener('click', function (event) {
 /**
  * Filter connections by distance - centralized filtering function
  * @param {Array} connections - Array of connection objects
- * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 500)
+ * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 250)
  * @returns {Array} Filtered array of connections
  */
 /**
  * Filter connections by distance - centralized filtering function
  * @param {Array} connections - Array of connection objects
  * @param {Object} nodesData - Object containing node data keyed by node ID
- * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 500)
+ * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 250)
  * @returns {Array} Filtered array of connections
  */
-function filterConnectionsByDistance(connections, nodesData, maxDistanceKm = 500) {
+function filterConnectionsByDistance(connections, nodesData, maxDistanceKm = 250) {
   if (!nodesData || !window.utilsModule || !window.utilsModule.shouldFilterConnection) {
     return connections; // If no filtering available, return all connections
   }
@@ -1054,10 +1054,10 @@ function filterConnectionsByDistance(connections, nodesData, maxDistanceKm = 500
 /**
  * Helper function to fetch nodes data and apply distance filtering to connections
  * @param {Array} connections - Array of connection objects
- * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 500)
+ * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 250)
  * @returns {Promise<Array>} Promise that resolves to filtered connections array
  */
-function fetchNodesAndFilterConnections(connections, maxDistanceKm = 500) {
+function fetchNodesAndFilterConnections(connections, maxDistanceKm = 250) {
   return fetch('/api/nodes')
     .then(response => response.json())
     .then(nodesArray => {
