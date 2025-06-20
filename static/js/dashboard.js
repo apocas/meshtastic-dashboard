@@ -27,10 +27,43 @@ function getFocusedNodeFromUrl() {
 function focusNodeFromUrl() {
   const focusedNodeId = getFocusedNodeFromUrl();
   if (focusedNodeId) {
+    // Show loading overlay
+    showLoadingOverlay(`Focusing on node ${focusedNodeId}`, 'Please wait while the dashboard loads...');
+    
     setTimeout(() => {
       window.mapModule.focusOnNode(focusedNodeId);
       window.graphModule.focusOnNode(focusedNodeId);
-    }, 5000);
+      
+      // Hide loading overlay
+      hideLoadingOverlay();
+    }, 6000);
+  }
+}
+
+// Loading overlay functions
+function showLoadingOverlay(message, subMessage) {
+  // Remove existing overlay if present
+  hideLoadingOverlay();
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'loading-overlay';
+  overlay.className = 'loading-overlay';
+  
+  overlay.innerHTML = `
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">${message}</div>
+      <div class="loading-subtext">${subMessage}</div>
+    </div>
+  `;
+  
+  document.body.appendChild(overlay);
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.remove();
   }
 }
 
@@ -38,6 +71,8 @@ function focusNodeFromUrl() {
 window.updateUrlWithFocusedNode = updateUrlWithFocusedNode;
 window.getFocusedNodeFromUrl = getFocusedNodeFromUrl;
 window.focusNodeFromUrl = focusNodeFromUrl;
+window.showLoadingOverlay = showLoadingOverlay;
+window.hideLoadingOverlay = hideLoadingOverlay;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function () {
