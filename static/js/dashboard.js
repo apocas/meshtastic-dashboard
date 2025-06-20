@@ -786,7 +786,11 @@ function handlePacketUpdate(packetData) {
 }
 
 function updateStats() {
-    fetch('/api/stats')
+    // Get the current timeframe
+    const timeframeSelect = document.getElementById('timeframeSelect');
+    const selectedHours = timeframeSelect ? timeframeSelect.value : 48;
+    
+    fetch(`/api/stats?hours=${selectedHours}`)
         .then(response => response.json())
         .then(stats => {
             document.getElementById('stat-nodes').textContent = stats.total_nodes || 0;
@@ -1219,10 +1223,13 @@ function updateTimeframe() {
     const timeframeSelect = document.getElementById('timeframeSelect');
     const selectedHours = timeframeSelect.value;
     
-    console.log(`Updating connections for last ${selectedHours} hours`);
+    console.log(`Updating connections and stats for last ${selectedHours} hours`);
     
     // Reload connections with new timeframe
     loadConnections(selectedHours);
+    
+    // Update stats with new timeframe
+    updateStats();
 }
 
 // Function to load connections with specified timeframe

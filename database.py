@@ -358,6 +358,14 @@ class MeshtasticDB:
         with sqlite3.connect(self.db_path) as conn:
             return conn.execute('SELECT COUNT(*) FROM packets').fetchone()[0]
     
+    def get_recent_packet_count(self, hours=48):
+        """Get count of packets within the specified timeframe"""
+        with sqlite3.connect(self.db_path) as conn:
+            return conn.execute('''
+                SELECT COUNT(*) FROM packets 
+                WHERE datetime(timestamp) > datetime('now', '-{} hours')
+            '''.format(hours)).fetchone()[0]
+    
     def get_node_neighbors(self, node_id):
         """Get all neighboring nodes (both as sender and receiver) with connection details"""
         connections = self.get_connections(nodes=[node_id])

@@ -117,18 +117,27 @@ def get_node_packets(node_id):
 
 @app.route('/api/stats')
 def get_stats():
-    """API endpoint to get network statistics"""
+    """API endpoint to get network statistics
+    Query parameters:
+        hours: Timeframe in hours for connections and packets (default: 48, allowed: 12, 24, 48, 72)
+    """
     try:
+        # Get timeframe parameter
+        hours = request.args.get('hours', 48, type=int)
+        if hours not in [12, 24, 48, 72]:
+            hours = 48
+        
         nodes = db.get_nodes()
         positioned_nodes = db.get_nodes_with_position()
-        connections = db.get_connections()
-        total_packets = db.get_total_packet_count()
+        connections = db.get_connections(hours=hours)
+        total_packets = db.get_recent_packet_count(hours=hours)
         
         stats = {
             'total_nodes': len(nodes),
             'active_connections': len(connections),
             'recent_packets': total_packets,
-            'nodes_with_position': len(positioned_nodes)
+            'nodes_with_position': len(positioned_nodes),
+            'timeframe_hours': hours
         }
         return jsonify(stats)
     except Exception as e:
