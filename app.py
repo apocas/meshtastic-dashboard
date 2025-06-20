@@ -4,6 +4,10 @@ import json
 import threading
 import os
 from database import MeshtasticDB
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'meshtastic_secret_key')
@@ -140,6 +144,20 @@ def get_stats():
             'timeframe_hours': hours
         }
         return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mqtt/info')
+def get_mqtt_info():
+    """API endpoint to get MQTT configuration information"""
+    try:
+        # Get MQTT configuration from environment variables
+        mqtt_info = {
+            'broker': os.getenv('MQTT_BROKER', 'Unknown'),
+            'port': int(os.getenv('MQTT_PORT', 1883)),
+            'topic': os.getenv('MQTT_TOPIC', 'Unknown'),
+        }
+        return jsonify(mqtt_info)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

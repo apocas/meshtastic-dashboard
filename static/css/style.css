@@ -54,6 +54,19 @@ body {
     color: #4fd1c7;
 }
 
+.title-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.subtitle {
+    font-size: 10px;
+    color: #a0aec0;
+    font-weight: normal;
+    opacity: 0.8;
+}
+
 .stats {
     display: flex;
     gap: 20px;

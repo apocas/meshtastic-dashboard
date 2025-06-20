@@ -13,8 +13,6 @@ let roles = {};
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded');
-    
     // Initialize interactive search functionality
     initializeSearch();
     
@@ -35,21 +33,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Wait a bit for vis.js to load
     setTimeout(function() {
-        console.log('Checking vis availability...');
-        console.log('typeof vis:', typeof vis);
-        
         if (typeof vis === 'undefined') {
-            console.error('vis.js library is not available');
             document.getElementById('network').innerHTML = 
                 '<div style="color: white; text-align: center; padding: 50px; font-size: 16px;">' +
                 '⚠️ Network graph unavailable<br>' +
                 '<small>vis.js library failed to load</small></div>';
         } else {
-            console.log('vis.js is available, version:', vis.version);
             // Initialize vis DataSets
             nodes = new vis.DataSet();
             edges = new vis.DataSet();
-            console.log('DataSets created');
         }
         
         // Initialize other components
@@ -61,6 +53,11 @@ document.addEventListener('DOMContentLoaded', function() {
         loadMappingData();
         loadInitialData();
     }, 500);
+});
+
+// Load MQTT info when window is fully loaded
+window.addEventListener('load', function() {
+    loadMqttInfo();
 });
 
 function initializeMap() {
@@ -229,8 +226,6 @@ function initializeWebSocket() {
             return;
         }
         
-        console.log('Node update received for:', nodeId);
-        
         // Fetch fresh node data from the API
         fetch(`/api/search/node/${nodeId}`)
             .then(response => {
@@ -240,7 +235,6 @@ function initializeWebSocket() {
                 return response.json();
             })
             .then(nodeData => {
-                console.log('Fresh node data fetched for:', nodeId, nodeData);
                 updateNode(nodeData);
                 // Add node to pending updates for connection refresh
                 pendingConnectionUpdates.add(nodeId);
@@ -288,9 +282,62 @@ function loadInitialData() {
         .catch(error => console.error('Error loading initial data:', error));
     
     // Load stats
-    updateStats();
-    setInterval(updateStats, 10000); // Update every 10 seconds
+    loadStats();
+    setInterval(loadStats, 10000); // Update every 10 seconds
 }
+
+function loadStats() {
+    // Get the current timeframe
+    const timeframeSelect = document.getElementById('timeframeSelect');
+    const selectedHours = timeframeSelect ? timeframeSelect.value : 48;
+    
+    fetch(`/api/stats?hours=${selectedHours}`)
+        .then(response => response.json())
+        .then(stats => {
+            document.getElementById('stat-nodes').textContent = stats.total_nodes || 0;
+            document.getElementById('stat-connections').textContent = stats.active_connections || 0;
+            document.getElementById('stat-packets').textContent = stats.recent_packets || 0;
+            document.getElementById('stat-active').textContent = stats.nodes_with_position || 0;
+        })
+        .catch(error => console.error('Error updating stats:', error));
+}
+
+function loadMqttInfo() {
+    // First, check if the element exists
+    const mqttInfoElement = document.getElementById('mqtt-info');
+    if (!mqttInfoElement) {
+        // Try again after a longer delay
+        setTimeout(() => {
+            loadMqttInfo();
+        }, 1000);
+        return;
+    }
+    
+    fetch('/api/mqtt/info')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                mqttInfoElement.textContent = 'MQTT: Connection error';
+                console.error('MQTT API error:', data.error);
+            } else {
+                // Format: "MQTT: broker:port (topic)"
+                const mqttText = `${data.broker}:${data.port} (${data.topic})`;
+                mqttInfoElement.textContent = mqttText;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading MQTT info:', error);
+            mqttInfoElement.textContent = 'MQTT: Connection unavailable';
+        });
+}
+
+// Make loadMqttInfo available globally for testing
+window.loadMqttInfo = loadMqttInfo;
 
 function ensureNodeExists(nodeId) {
     if (!nodeId || nodeId === 'ffffffff') return; // Skip invalid or broadcast IDs
@@ -316,23 +363,17 @@ function ensureNodeExists(nodeId) {
 }
 
 function showMapPing(nodeId) {
-    console.log('showMapPing called for node:', nodeId);
     const marker = mapMarkers[nodeId];
     if (!marker) {
-        console.log('No marker found for node:', nodeId, 'Available markers:', Object.keys(mapMarkers));
         return;
     }
     
-    console.log('Marker found, creating ping...');
-    
     // Get marker's lat/lng position
     const latLng = marker.getLatLng();
-    console.log('Marker lat/lng:', latLng);
     
     // Calculate radius based on zoom level to ensure visibility at all zoom levels
     const currentZoom = map.getZoom();
     const baseRadius = Math.pow(2, (15 - currentZoom)) * 30; // Reduced from 50 to 30
-    console.log('Current zoom:', currentZoom, 'Base radius:', baseRadius);
     
     // Create multiple ping circles for more dramatic effect
     const pingRadius1 = L.circle(latLng, {
@@ -362,8 +403,6 @@ function showMapPing(nodeId) {
         weight: 2,
         className: 'leaflet-ping-circle-inner'
     }).addTo(map);
-    
-    console.log('Ping circles added to map with base radius:', baseRadius);
     
     // Animate the circles by gradually increasing radius and decreasing opacity
     const animationDuration = 1200; // Match graph ping duration in milliseconds
@@ -418,7 +457,6 @@ function showMapPing(nodeId) {
             map.removeLayer(pingRadius1);
             map.removeLayer(pingRadius2);
             map.removeLayer(pingRadius3);
-            console.log('Ping animation completed and circles removed');
         }
     };
     
@@ -427,23 +465,18 @@ function showMapPing(nodeId) {
 }
 
 function showGraphPing(nodeId) {
-    console.log('showGraphPing called for node:', nodeId);
     if (!network || typeof vis === 'undefined') {
-        console.log('Network or vis not available');
         return;
     }
     
     try {
         // Get node position in the network view
         const nodePosition = network.getPositions([nodeId]);
-        console.log('Node position in network:', nodePosition);
         if (!nodePosition[nodeId]) {
-            console.log('No position found for node in network');
             return;
         }
         
         const canvasPosition = network.canvasToDOM(nodePosition[nodeId]);
-        console.log('Canvas position:', canvasPosition);
         
         // Create ping element
         const ping = document.createElement('div');
@@ -460,14 +493,12 @@ function showGraphPing(nodeId) {
         networkContainer.style.position = 'relative';
         networkContainer.appendChild(ping);
         
-        console.log('Graph ping added, will remove in 1200ms');
         // Remove after animation completes
         setTimeout(() => {
             if (ping.parentNode) ping.parentNode.removeChild(ping);
-            console.log('Graph ping removed');
         }, 1200);
     } catch (error) {
-        console.log('Could not show graph ping for node:', nodeId, error);
+        // Silently handle errors
     }
 }
 
@@ -477,31 +508,10 @@ function showNodeUpdatePing(nodeId) {
     
     // Show ping on graph
     showGraphPing(nodeId);
-    
-    console.log('Showing update ping for node:', nodeId);
 }
-
-// Test function to manually trigger ping (for debugging)
-function testPing() {
-    // Test with the first available marker
-    const nodeIds = Object.keys(mapMarkers);
-    if (nodeIds.length > 0) {
-        const testNodeId = nodeIds[0];
-        console.log('Testing ping with node:', testNodeId);
-        showNodeUpdatePing(testNodeId);
-    } else {
-        console.log('No markers available for ping test');
-    }
-}
-
-// Make test function globally available for console testing
-window.testPing = testPing;
 
 function updateNode(nodeData) {
     const nodeId = nodeData.node_id;
-    
-    // Debug logging for all node data to understand the issue
-    console.log('updateNode called for:', nodeId, nodeData);
     
     const hasPosition = nodeData.latitude != null && nodeData.longitude != null && 
                        nodeData.latitude !== '' && nodeData.longitude !== '' &&
@@ -1003,22 +1013,6 @@ function handlePacketUpdate(packetData) {
     addLogEntry(type, message);
 }
 
-function updateStats() {
-    // Get the current timeframe
-    const timeframeSelect = document.getElementById('timeframeSelect');
-    const selectedHours = timeframeSelect ? timeframeSelect.value : 48;
-    
-    fetch(`/api/stats?hours=${selectedHours}`)
-        .then(response => response.json())
-        .then(stats => {
-            document.getElementById('stat-nodes').textContent = stats.total_nodes || 0;
-            document.getElementById('stat-connections').textContent = stats.active_connections || 0;
-            document.getElementById('stat-packets').textContent = stats.recent_packets || 0;
-            document.getElementById('stat-active').textContent = stats.nodes_with_position || 0;
-        })
-        .catch(error => console.error('Error updating stats:', error));
-}
-
 function updateConnectionStatus(connected) {
     const statusElement = document.getElementById('connection-status');
     if (connected) {
@@ -1441,13 +1435,11 @@ function updateTimeframe() {
     const timeframeSelect = document.getElementById('timeframeSelect');
     const selectedHours = timeframeSelect.value;
     
-    console.log(`Updating connections and stats for last ${selectedHours} hours`);
-    
     // Reload connections with new timeframe
     loadConnections(selectedHours);
     
     // Update stats with new timeframe
-    updateStats();
+    loadStats();
 }
 
 // Function to load connections with specified timeframe
@@ -1569,7 +1561,6 @@ async function loadMappingData() {
         regionCodes = await regionRes.json();
         roles = await rolesRes.json();
         
-        console.log('Mapping data loaded successfully');
     } catch (error) {
         console.error('Error loading mapping data:', error);
     }
@@ -1685,8 +1676,6 @@ function refreshPendingConnections() {
         return;
     }
     
-    console.log('Refreshing connections for nodes:', Array.from(pendingConnectionUpdates));
-    
     // Get the current timeframe
     const timeframeSelect = document.getElementById('timeframeSelect');
     const selectedHours = timeframeSelect ? timeframeSelect.value : 48;
@@ -1698,7 +1687,6 @@ function refreshPendingConnections() {
     fetch(`/api/connections?hours=${selectedHours}&nodes=${nodeList}`)
         .then(response => response.json())
         .then(connections => {
-            console.log('Refreshed connections for updated nodes:', connections.length);
             // Update connections for these specific nodes
             connections.forEach(connection => updateConnection(connection));
             
@@ -1729,14 +1717,12 @@ function toggleActivityFeed() {
         toggleBtn.innerHTML = '−';
         toggleBtn.title = 'Collapse Activity Feed';
         
-        console.log('Activity feed expanded');
     } else {
         // Collapse
         container.classList.add('activity-collapsed');
         toggleBtn.innerHTML = '+';
         toggleBtn.title = 'Expand Activity Feed';
         
-        console.log('Activity feed collapsed');
     }
     
     // Trigger map and network resize after layout change

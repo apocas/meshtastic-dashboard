@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meshtastic Dashboard</title>
+    <title>Meshtastic Ground Control</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
@@ -21,7 +21,10 @@
     <div class="container activity-collapsed">
         <div class="header">
             <div class="header-left">
-                <div class="title">🌐 Meshtastic Dashboard</div>
+                <div class="title-container">
+                    <div class="title">🌐 Meshtastic Ground Control</div>
+                    <div class="subtitle" id="mqtt-info">Loading MQTT info...</div>
+                </div>
             </div>
             <div class="header-center">
                 <div class="header-search">
