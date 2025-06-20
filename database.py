@@ -43,6 +43,18 @@ class MeshtasticDB:
                 # Column already exists, ignore
                 pass
             
+            # Add new map_report fields
+            for column_info in [
+                ('modem_preset', 'INTEGER'),
+                ('region', 'INTEGER'), 
+                ('has_default_channel', 'BOOLEAN')
+            ]:
+                try:
+                    conn.execute(f'ALTER TABLE nodes ADD COLUMN {column_info[0]} {column_info[1]}')
+                except sqlite3.OperationalError:
+                    # Column already exists, ignore
+                    pass
+            
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS packets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +98,8 @@ class MeshtasticDB:
                     update_values = []
                     
                     for field in ['long_name', 'short_name', 'hardware_model', 'latitude', 'longitude', 'altitude', 
-                                  'battery_level', 'voltage', 'snr', 'rssi', 'channel', 'firmware_version', 'role', 'is_licensed']:
+                                  'battery_level', 'voltage', 'snr', 'rssi', 'channel', 'firmware_version', 'role', 'is_licensed',
+                                  'modem_preset', 'region', 'has_default_channel']:
                         if field in node_data and node_data[field] is not None:
                             update_fields.append(f"{field} = ?")
                             update_values.append(node_data[field])
@@ -118,8 +131,9 @@ class MeshtasticDB:
                             node_id, long_name, short_name, hardware_model,
                             latitude, longitude, altitude, position_quality, last_seen,
                             battery_level, voltage, snr, rssi, channel,
-                            firmware_version, role, is_licensed
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            firmware_version, role, is_licensed,
+                            modem_preset, region, has_default_channel
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         node_data.get('node_id'),
                         node_data.get('long_name'),
@@ -137,7 +151,10 @@ class MeshtasticDB:
                         node_data.get('channel'),
                         node_data.get('firmware_version'),
                         node_data.get('role'),
-                        node_data.get('is_licensed')
+                        node_data.get('is_licensed'),
+                        node_data.get('modem_preset'),
+                        node_data.get('region'),
+                        node_data.get('has_default_channel')
                     ))
                 
                 conn.commit()

@@ -515,7 +515,10 @@ def process_decoded_payload(decoded, from_node, to_node, packet_data):
                 'firmware_version': decoded.get('firmware_version'),
                 'latitude': decoded.get('latitude'),
                 'longitude': decoded.get('longitude'),
-                'altitude': decoded.get('altitude')
+                'altitude': decoded.get('altitude'),
+                'modem_preset': decoded.get('modem_preset'),
+                'region': decoded.get('region'),
+                'has_default_channel': decoded.get('has_default_channel')
             }
             db.update_node(node_data)
             
