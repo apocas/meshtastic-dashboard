@@ -559,7 +559,10 @@ function redrawAllMapConnections() {
 function focusOnNodeInMap(nodeId) {
     // Focus on node in map view without opening popup
     if (mapMarkers[nodeId]) {
-        map.setView(mapMarkers[nodeId].getLatLng(), 14);
+        const latLng = mapMarkers[nodeId].getLatLng();
+        
+        map.setView(latLng, 14);
+        
         // Briefly highlight the marker
         const marker = mapMarkers[nodeId];
         
@@ -570,6 +573,10 @@ function focusOnNodeInMap(nodeId) {
                 marker._icon.style.filter = '';
             }, 2000);
         }
+        
+        return true; // Successfully focused
+    } else {
+        return false; // Failed to focus
     }
 }
 

@@ -118,9 +118,23 @@ function initializeGraphView() {
                 window.updateUrlWithFocusedNode(nodeId);
             }
             
-            if (window.showNodePopup) {
-                window.showNodePopup(nodeId);
+            // Get node data to check position quality
+            const visNode = nodes.get(nodeId);
+            const nodeData = visNode ? visNode.nodeData : null;
+            
+            // Only show popup if node doesn't have confirmed position
+            if (window.showNodePopup && nodeData) {
+                const positionQuality = nodeData.position_quality || 'unknown';
+                const hasPosition = nodeData.latitude != null && nodeData.longitude != null && 
+                                   nodeData.latitude !== '' && nodeData.longitude !== '' &&
+                                   !isNaN(nodeData.latitude) && !isNaN(nodeData.longitude);
+                
+                // Show popup only if position is not confirmed or doesn't exist
+                if (!hasPosition || positionQuality !== 'confirmed') {
+                    window.showNodePopup(nodeId);
+                }
             }
+            
             // Also focus the node on the map if it has a position
             if (window.mapModule) {
                 window.mapModule.focusOnNode(nodeId);
@@ -135,7 +149,6 @@ function initializeGraphView() {
     
     // Add hover event handlers for enhanced tooltips
     network.on('hoverNode', function(params) {
-        console.log('Graph node hovered:', params.node); // Debug log
         const nodeId = params.node;
         
         // Get node data from the vis.js nodes dataset
@@ -143,7 +156,6 @@ function initializeGraphView() {
         const nodeData = visNode ? visNode.nodeData : null;
         
         if (nodeData) {
-            console.log('Found node data for:', nodeId, nodeData); // Debug log
             // Generate enhanced tooltip content
             const tooltipContent = generateEnhancedTooltip(nodeData, nodeId);
             
@@ -217,8 +229,6 @@ function initializeGraphView() {
             requestAnimationFrame(() => {
                 tooltip.style.opacity = '1';
             });
-        } else {
-            console.log('No node data available for:', nodeId); // Debug log
         }
     });
     
@@ -391,7 +401,12 @@ function focusOnNodeInGraph(nodeId) {
             
             // Select the node to highlight it
             network.selectNodes([nodeId]);
+            return true; // Successfully focused
+        } else {
+            return false; // Node not found
         }
+    } else {
+        return false; // Graph not ready
     }
 }
 
