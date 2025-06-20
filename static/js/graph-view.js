@@ -112,12 +112,23 @@ function initializeGraphView() {
     network.on('click', function(params) {
         if (params.nodes.length > 0) {
             const nodeId = params.nodes[0];
+            
+            // Update URL with focused node for sharing
+            if (window.updateUrlWithFocusedNode) {
+                window.updateUrlWithFocusedNode(nodeId);
+            }
+            
             if (window.showNodePopup) {
                 window.showNodePopup(nodeId);
             }
             // Also focus the node on the map if it has a position
             if (window.mapModule) {
                 window.mapModule.focusOnNode(nodeId);
+            }
+        } else {
+            // Clicked on empty space - clear URL focus parameter
+            if (window.updateUrlWithFocusedNode) {
+                window.updateUrlWithFocusedNode(null);
             }
         }
     });

@@ -30,6 +30,15 @@ function initializeMapView() {
         });
     });
     
+    // Add click handler for empty map areas to clear URL focus
+    map.on('click', function(e) {
+        // Check if the click was on the map background (not on a marker)
+        // Markers will handle their own clicks, so this only fires for empty areas
+        if (window.updateUrlWithFocusedNode) {
+            window.updateUrlWithFocusedNode(null);
+        }
+    });
+    
     // Create separate layer groups to control z-order
     // Connection layer first (will be below)
     window.connectionLayer = L.layerGroup().addTo(map);
@@ -240,6 +249,11 @@ function updateMapMarker(nodeData) {
         
         // Add click event to focus on node in graph
         marker.on('click', function() {
+            // Update URL with focused node for sharing
+            if (window.updateUrlWithFocusedNode) {
+                window.updateUrlWithFocusedNode(nodeId);
+            }
+            
             if (window.graphModule) {
                 window.graphModule.focusOnNode(nodeId);
             }

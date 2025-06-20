@@ -8,6 +8,97 @@ let modemPresets = {};
 let regionCodes = {};
 let roles = {};
 
+// URL parameter utilities for sharing focused nodes
+function updateUrlWithFocusedNode(nodeId) {
+  const url = new URL(window.location);
+  if (nodeId) {
+    url.searchParams.set('focus', nodeId);
+  } else {
+    url.searchParams.delete('focus');
+  }
+  window.history.replaceState({}, '', url);
+}
+
+function getFocusedNodeFromUrl() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('focus');
+}
+
+function focusNodeFromUrl() {
+  const focusedNodeId = getFocusedNodeFromUrl();
+  if (focusedNodeId) {
+    console.log('Focusing on node from URL:', focusedNodeId);
+    
+    // Function to check if views are ready and node exists
+    const attemptFocus = (retryCount = 0) => {
+      const maxRetries = 10; // Try for up to 5 seconds (10 * 500ms)
+      
+      // Check if modules are available and initialized
+      const mapReady = window.mapModule && typeof window.mapModule.focusOnNode === 'function';
+      const graphReady = window.graphModule && window.graphModule.isAvailable && 
+                        window.graphModule.isAvailable() && 
+                        typeof window.graphModule.focusOnNode === 'function';
+      
+      console.log(`Focus attempt ${retryCount + 1}: Map ready: ${mapReady}, Graph ready: ${graphReady}`);
+      
+      if (mapReady || graphReady) {
+        // Try to focus on the node
+        let focusSuccess = false;
+        
+        if (mapReady) {
+          try {
+            window.mapModule.focusOnNode(focusedNodeId);
+            focusSuccess = true;
+            console.log('Map focus attempted for node:', focusedNodeId);
+          } catch (e) {
+            console.log('Map focus failed:', e.message);
+          }
+        }
+        
+        if (graphReady) {
+          try {
+            window.graphModule.focusOnNode(focusedNodeId);
+            focusSuccess = true;
+            console.log('Graph focus attempted for node:', focusedNodeId);
+          } catch (e) {
+            console.log('Graph focus failed:', e.message);
+          }
+        }
+        
+        // Show node popup after a delay to ensure the node is focused
+        if (focusSuccess && window.showNodePopup) {
+          setTimeout(() => {
+            try {
+              window.showNodePopup(focusedNodeId);
+              console.log('Node popup shown for:', focusedNodeId);
+            } catch (e) {
+              console.log('Node popup failed:', e.message);
+            }
+          }, 1500);
+        }
+        
+        return; // Exit function - we've attempted focus
+      }
+      
+      // If views aren't ready yet and we haven't hit max retries, try again
+      if (retryCount < maxRetries) {
+        console.log(`Views not ready yet, retrying in 500ms... (attempt ${retryCount + 1}/${maxRetries})`);
+        setTimeout(() => attemptFocus(retryCount + 1), 500);
+      } else {
+        console.warn('Max retries reached. Could not focus on node from URL:', focusedNodeId);
+      }
+    };
+    
+    // Start the focus attempt process
+    attemptFocus();
+  }
+}
+
+// Make URL functions available globally
+window.updateUrlWithFocusedNode = updateUrlWithFocusedNode;
+window.getFocusedNodeFromUrl = getFocusedNodeFromUrl;
+window.focusNodeFromUrl = focusNodeFromUrl;
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function () {
   // Initialize interactive search functionality
@@ -53,6 +144,12 @@ document.addEventListener('DOMContentLoaded', function () {
 // Load MQTT info when window is fully loaded
 window.addEventListener('load', function () {
   loadMqttInfo();
+  
+  // Backup attempt to focus node from URL after everything is fully loaded
+  // This acts as a fallback in case the first attempt during data loading didn't work
+  setTimeout(() => {
+    focusNodeFromUrl();
+  }, 1000);
 });
 
 
@@ -132,7 +229,11 @@ function loadInitialData() {
         if (window.mapModule) {
           window.mapModule.redrawAllConnections();
         }
-      }, 200);
+        
+        // Focus on node from URL parameter after all data is loaded
+        // The function now includes retry logic to wait for views to be ready
+        focusNodeFromUrl();
+      }, 500); // Increased delay to give views more time to initialize
     })
     .catch(error => console.error('Error loading initial data:', error));
 
