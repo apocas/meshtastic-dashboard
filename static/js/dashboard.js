@@ -1385,6 +1385,10 @@ function closeNodeModal() {
     document.getElementById('nodeModal').style.display = 'none';
 }
 
+function closeSearchModal() {
+    document.getElementById('searchModal').style.display = 'none';
+}
+
 // Function to triangulate a specific node
 function triangulateNode(nodeId) {
     const button = event.target;
