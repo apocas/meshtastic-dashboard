@@ -5,6 +5,12 @@ let mapMarkers = {};
 let connectionLines = {};
 let pendingConnectionUpdates = new Set(); // Track nodes that need connection updates
 
+// Global variables for mapping data
+let hardwareModels = {};
+let modemPresets = {};
+let regionCodes = {};
+let roles = {};
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded');
@@ -52,6 +58,7 @@ document.addEventListener('DOMContentLoaded', function() {
             initializeNetwork();
         }
         initializeWebSocket();
+        loadMappingData();
         loadInitialData();
     }, 500);
 });
@@ -427,17 +434,7 @@ function updateMapMarker(nodeData) {
             </div>
         `;
         
-        const tooltipContent = `
-            <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 250px;">
-                <div style="font-weight: bold; margin-bottom: 4px;">
-                    ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
-                </div>
-                <div style="color: #666; margin-bottom: 2px;">ID: !${nodeId}</div>
-                ${nodeData.hardware_model ? `<div style="color: #666; margin-bottom: 2px;">${nodeData.hardware_model}</div>` : ''}
-                ${nodeData.battery_level ? `<div style="color: #666; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
-                ${nodeData.last_seen ? `<div style="color: #666; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
-            </div>
-        `;
+        const tooltipContent = generateEnhancedTooltip(nodeData, nodeId);
         
         mapMarkers[nodeId].setPopupContent(popupContent);
         mapMarkers[nodeId].setTooltipContent(tooltipContent);
@@ -528,17 +525,7 @@ function updateMapMarker(nodeData) {
         `;
         
         // Create hover tooltip content (more concise)
-        const tooltipContent = `
-            <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 250px;">
-                <div style="font-weight: bold; margin-bottom: 4px;">
-                    ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
-                </div>
-                <div style="color: #666; margin-bottom: 2px;">ID: !${nodeId}</div>
-                ${nodeData.hardware_model ? `<div style="color: #666; margin-bottom: 2px;">${nodeData.hardware_model}</div>` : ''}
-                ${nodeData.battery_level ? `<div style="color: #666; margin-bottom: 2px;">Battery: ${nodeData.battery_level}%</div>` : ''}
-                ${nodeData.last_seen ? `<div style="color: #666; font-size: 11px;">Last seen: ${new Date(nodeData.last_seen).toLocaleString()}</div>` : ''}
-            </div>
-        `;
+        const tooltipContent = generateEnhancedTooltip(nodeData, nodeId);
         
         // Bind popup (click to open)
         marker.bindPopup(popupContent);
@@ -1082,19 +1069,19 @@ function showNodePopup(nodeId) {
                     
                     <div style="margin-bottom: 16px;">
                         ${fullNodeData.battery_level ? `
-                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                        <div style="font-size: 14px; color: #e2e8f0, margin-bottom: 8px;">
                             <strong>Battery:</strong> ${fullNodeData.battery_level}%
                         </div>` : ''}
                         ${fullNodeData.voltage ? `
-                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                        <div style="font-size: 14px; color: #e2e8f0, margin-bottom: 8px;">
                             <strong>Voltage:</strong> ${fullNodeData.voltage}V
                         </div>` : ''}
                         ${fullNodeData.snr ? `
-                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                        <div style="font-size: 14px; color: #e2e8f0, margin-bottom: 8px;">
                             <strong>SNR:</strong> ${fullNodeData.snr} dB
                         </div>` : ''}
                         ${fullNodeData.rssi ? `
-                        <div style="font-size: 14px; color: #e2e8f0; margin-bottom: 8px;">
+                        <div style="font-size: 14px; color: #e2e8f0, margin-bottom: 8px;">
                             <strong>RSSI:</strong> ${fullNodeData.rssi} dBm
                         </div>` : ''}
                     </div>
@@ -1317,4 +1304,129 @@ function toggleFullscreen(viewType) {
             }
         }, 100);
     }
+}
+
+// Load mapping data
+async function loadMappingData() {
+    try {
+        const [hardwareRes, modemRes, regionRes, rolesRes] = await Promise.all([
+            fetch('/static/json/hardware_models.json'),
+            fetch('/static/json/modem_presets.json'),
+            fetch('/static/json/region_codes.json'),
+            fetch('/static/json/roles.json')
+        ]);
+        
+        hardwareModels = await hardwareRes.json();
+        modemPresets = await modemRes.json();
+        regionCodes = await regionRes.json();
+        roles = await rolesRes.json();
+        
+        console.log('Mapping data loaded successfully');
+    } catch (error) {
+        console.error('Error loading mapping data:', error);
+    }
+}
+
+// Helper functions to get human-readable names
+function getHardwareModelName(modelId) {
+    if (!modelId && modelId !== 0) return 'Unknown';
+    return hardwareModels[modelId.toString()] || `Unknown (${modelId})`;
+}
+
+function getHardwareImagePath(modelId) {
+    if (!modelId && modelId !== 0) return '/static/images/no_image.png';
+    const modelName = hardwareModels[modelId.toString()];
+    if (!modelName || modelName === 'UNSET') return '/static/images/no_image.png';
+    return `/static/images/devices/${modelName}.png`;
+}
+
+function getModemPresetName(presetId) {
+    if (!presetId && presetId !== 0) return 'Unknown';
+    return modemPresets[presetId.toString()] || `Unknown (${presetId})`;
+}
+
+function getRegionName(regionId) {
+    if (!regionId && regionId !== 0) return 'Unknown';
+    return regionCodes[regionId.toString()] || `Unknown (${regionId})`;
+}
+
+function getRoleName(roleId) {
+    if (!roleId && roleId !== 0) return 'Unknown';
+    return roles[roleId.toString()] || `Unknown (${roleId})`;
+}
+
+// Enhanced tooltip generation
+function generateEnhancedTooltip(nodeData, nodeId) {
+    const hardwareName = getHardwareModelName(nodeData.hardware_model);
+    const hardwareImage = getHardwareImagePath(nodeData.hardware_model);
+    const modemPreset = getModemPresetName(nodeData.modem_preset);
+    const region = getRegionName(nodeData.region);
+    const role = getRoleName(nodeData.role);
+    
+    return `
+        <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 350px; background: white; padding: 10px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <img src="${hardwareImage}" alt="${hardwareName}" 
+                     style="width: 40px; height: 40px; object-fit: contain; margin-right: 10px; border-radius: 4px; background: #f5f5f5; padding: 2px;"
+                     onerror="this.src='/static/images/no_image.png'">
+                <div>
+                    <div style="font-weight: bold; margin-bottom: 2px; color: #1a202c;">
+                        ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
+                    </div>
+                    <div style="color: #718096; font-size: 11px;">ID: !${nodeId}</div>
+                    ${nodeData.short_name && nodeData.long_name !== nodeData.short_name ? 
+                        `<div style="color: #718096; font-size: 11px;">Short: ${nodeData.short_name}</div>` : ''}
+                </div>
+            </div>
+            
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px;">
+                <div style="color: #2d3748; margin-bottom: 3px;"><strong>Hardware:</strong> ${hardwareName}</div>
+                ${nodeData.role !== undefined && nodeData.role !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Role:</strong> ${role}</div>` : ''}
+                ${nodeData.modem_preset !== undefined && nodeData.modem_preset !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Modem:</strong> ${modemPreset}</div>` : ''}
+                ${nodeData.region !== undefined && nodeData.region !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Region:</strong> ${region}</div>` : ''}
+                ${nodeData.firmware_version ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Firmware:</strong> ${nodeData.firmware_version}</div>` : ''}
+                ${nodeData.has_default_channel !== undefined && nodeData.has_default_channel !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Default Channel:</strong> ${nodeData.has_default_channel ? 'Yes' : 'No'}</div>` : ''}
+                ${nodeData.is_licensed !== undefined && nodeData.is_licensed !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Licensed:</strong> ${nodeData.is_licensed ? 'Yes' : 'No'}</div>` : ''}
+            </div>
+            
+            ${(nodeData.latitude || nodeData.longitude || nodeData.altitude || nodeData.position_quality) ? `
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px;">
+                <div style="color: #2d3748; font-weight: bold; margin-bottom: 3px;">📍 Location</div>
+                ${nodeData.latitude && nodeData.longitude ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;">
+                        <strong>Coordinates:</strong> ${nodeData.latitude.toFixed(6)}, ${nodeData.longitude.toFixed(6)}
+                     </div>` : ''}
+                ${nodeData.altitude ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Altitude:</strong> ${nodeData.altitude}m</div>` : ''}
+                ${nodeData.position_quality ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Position Quality:</strong> ${nodeData.position_quality}</div>` : ''}
+            </div>` : ''}
+            
+            ${(nodeData.battery_level || nodeData.voltage || nodeData.snr || nodeData.rssi || nodeData.channel) ? `
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px;">
+                <div style="color: #2d3748; font-weight: bold; margin-bottom: 3px;">📊 Status</div>
+                ${nodeData.battery_level ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Battery:</strong> ${nodeData.battery_level}%</div>` : ''}
+                ${nodeData.voltage ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Voltage:</strong> ${nodeData.voltage}V</div>` : ''}
+                ${nodeData.snr ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>SNR:</strong> ${nodeData.snr} dB</div>` : ''}
+                ${nodeData.rssi ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>RSSI:</strong> ${nodeData.rssi} dBm</div>` : ''}
+                ${nodeData.channel !== undefined && nodeData.channel !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Channel:</strong> ${nodeData.channel}</div>` : ''}
+            </div>` : ''}
+            
+            ${nodeData.last_seen ? `
+            <div style="color: #718096; font-size: 11px; margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 6px; text-align: center;">
+                <strong>Last seen:</strong> ${new Date(nodeData.last_seen).toLocaleString()}
+            </div>` : ''}
+        </div>
+    `;
 }
