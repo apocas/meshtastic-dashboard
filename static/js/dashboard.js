@@ -71,6 +71,25 @@ function initializeMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
     
+    // Create separate layer groups to control z-order
+    // Connection layer first (will be below)
+    window.connectionLayer = L.layerGroup().addTo(map);
+    // Marker layer second (will be on top)
+    window.markerLayer = L.layerGroup().addTo(map);
+    
+    // Explicitly set z-index to ensure proper layering
+    if (window.connectionLayer.getPane) {
+        map.createPane('connectionPane');
+        map.getPane('connectionPane').style.zIndex = 400;
+        window.connectionLayer.options.pane = 'connectionPane';
+    }
+    
+    if (window.markerLayer.getPane) {
+        map.createPane('markerPane');
+        map.getPane('markerPane').style.zIndex = 450;
+        window.markerLayer.options.pane = 'markerPane';
+    }
+    
     // Clear any existing markers
     mapMarkers = {};
     
@@ -463,8 +482,9 @@ function updateMapMarker(nodeData) {
             color: '#ffffff',
             weight: 2,
             opacity: 1,
-            fillOpacity: 0.8
-        }).addTo(map);
+            fillOpacity: 0.8,
+            pane: 'markerPane'
+        }).addTo(window.markerLayer);
         
         // Create detailed popup content
         const popupContent = `
@@ -588,8 +608,9 @@ function redrawMapConnectionsForNode(nodeId) {
                         ], {
                             color: '#4fd1c7',
                             weight: 2,
-                            opacity: 0.7
-                        }).addTo(map);
+                            opacity: 0.7,
+                            pane: 'connectionPane'
+                        }).addTo(window.connectionLayer);
                         
                         line.bindPopup(`
                             <b>Connection</b><br>
@@ -619,7 +640,7 @@ function redrawAllMapConnections() {
                 
                 // Remove existing line if it exists
                 if (connectionLines[edgeId]) {
-                    map.removeLayer(connectionLines[edgeId]);
+                    window.connectionLayer.removeLayer(connectionLines[edgeId]);
                 }
                 
                 // Create new connection line
@@ -629,8 +650,9 @@ function redrawAllMapConnections() {
                 ], {
                     color: '#4fd1c7',
                     weight: 2,
-                    opacity: 0.7
-                }).addTo(map);
+                    opacity: 0.7,
+                    pane: 'connectionPane'
+                }).addTo(window.connectionLayer);
                 
                 line.bindPopup(`
                     Connection: ${edge.from.slice(-4)} → ${edge.to.slice(-4)}<br>
@@ -717,7 +739,7 @@ function updateConnection(connectionData) {
         const lineId = edgeId;
         
         if (connectionLines[lineId]) {
-            map.removeLayer(connectionLines[lineId]);
+            window.connectionLayer.removeLayer(connectionLines[lineId]);
         }
         
         const line = L.polyline([
@@ -726,8 +748,9 @@ function updateConnection(connectionData) {
         ], {
             color: '#4fd1c7',
             weight: Math.min(connectionData.packet_count / 10 + 1, 5),
-            opacity: 0.6
-        }).addTo(map);
+            opacity: 0.6,
+            pane: 'connectionPane'
+        }).addTo(window.connectionLayer);
         
         line.bindPopup(`
             Connection: ${fromNodeId} → ${toNodeId}<br>
@@ -1251,13 +1274,13 @@ function updateMapConnections(connections) {
 }
 
 function clearMapConnections() {
-    // Remove all connection lines from map
+    // Clear the connection layer
+    if (window.connectionLayer) {
+        window.connectionLayer.clearLayers();
+    }
+    
+    // Also clear the connectionLines object
     if (typeof connectionLines !== 'undefined' && connectionLines) {
-        Object.values(connectionLines).forEach(line => {
-            if (map.hasLayer(line)) {
-                map.removeLayer(line);
-            }
-        });
         connectionLines = {};
     }
 }
@@ -1429,4 +1452,41 @@ function generateEnhancedTooltip(nodeData, nodeId) {
             </div>` : ''}
         </div>
     `;
+}
+
+// Global function to refresh pending connections for updated nodes
+function refreshPendingConnections() {
+    if (pendingConnectionUpdates.size === 0) {
+        return;
+    }
+    
+    console.log('Refreshing connections for nodes:', Array.from(pendingConnectionUpdates));
+    
+    // Get the current timeframe
+    const timeframeSelect = document.getElementById('timeframeSelect');
+    const selectedHours = timeframeSelect ? timeframeSelect.value : 48;
+    
+    // Convert Set to comma-separated string for API call
+    const nodeList = Array.from(pendingConnectionUpdates).join(',');
+    
+    // Fetch connections for the updated nodes
+    fetch(`/api/connections?hours=${selectedHours}&nodes=${nodeList}`)
+        .then(response => response.json())
+        .then(connections => {
+            console.log('Refreshed connections for updated nodes:', connections.length);
+            // Update connections for these specific nodes
+            connections.forEach(connection => updateConnection(connection));
+            
+            // Force redraw map connections
+            setTimeout(() => {
+                redrawAllMapConnections();
+            }, 100);
+        })
+        .catch(error => {
+            console.error('Error refreshing connections for updated nodes:', error);
+        })
+        .finally(() => {
+            // Clear the pending updates
+            pendingConnectionUpdates.clear();
+        });
 }
