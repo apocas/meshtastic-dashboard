@@ -1,22 +1,47 @@
-# 🌐 Meshtastic Network Dashboard
+# 🌐 Meshtastic Ground Control
 
 A comprehensive real-time dashboard for visualizing Meshtastic mesh networks with both map-based node locations and network graph connections.
+
+![Meshtastic Ground Control](https://img.shields.io/badge/Meshtastic-Ground%20Control-blue?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+
+## 🚀 Live Demo
+
+**Try it now:** [https://meshtastic.ince.pt](https://meshtastic.ince.pt)
+
+Experience Meshtastic Ground Control in action with live data from Portugal's Meshtastic network. The demo showcases real nodes, connections, and activity from the Portuguese mesh network, giving you a complete preview of all features including interactive maps, network graphs, enhanced tooltips, and URL sharing.
+
+## 🤖 AI-Powered Development
+
+This project showcases the power of AI-assisted software development - **95% of the codebase was written by artificial intelligence**. From the initial concept to the advanced features like enhanced tooltips and URL sharing, AI handled the vast majority of the implementation while maintaining proper documentation and modern best practices.
 
 ## Features
 
 ### 📍 Interactive Map View
 - **OpenStreetMap Integration**: Displays node locations on a real map
-- **Live Node Markers**: Shows nodes as they appear on the network
+- **Live Node Markers**: Shows nodes as they appear on the network with color-coded position quality
+- **Enhanced Tooltips**: Rich hover tooltips with hardware images, device specs, and status info
 - **Connection Lines**: Visual connections between nodes with thickness based on packet count
 - **Node Popups**: Click nodes to see detailed information (battery, last seen, etc.)
+- **Position Quality Indicators**: Green (confirmed GPS), Yellow (triangulated), Red (estimated)
 
 ### 🔗 Network Graph
 - **Node-to-Node Visualization**: Interactive force-directed graph using vis.js
-- **Connection Strength**: Edge thickness and labels show packet counts
+- **Enhanced Node Tooltips**: Rich hover tooltips matching the map view with hardware details
+- **Connection Strength**: Edge thickness and labels show packet counts with detailed connection info
 - **Real-time Updates**: Graph updates as new connections are discovered
 - **Interactive**: Click and drag nodes, hover for details
+- **Smart Popup Logic**: Shows popups only for nodes without confirmed positions
 
-### 📡 Live Activity Feed
+### � URL Sharing & Focus
+- **Shareable Node Links**: Click any node to update the URL with `?node=nodeId` parameter
+- **Direct Node Access**: Share URLs that automatically focus on specific nodes
+- **Cross-View Synchronization**: Clicking nodes focuses both map and graph views
+- **Loading Overlay**: Professional loading indicator during node focusing
+- **Auto-Focus**: URLs with node parameters automatically center and highlight the specified node
+
+### �📡 Live Activity Feed
 - **Real-time Packet Stream**: Shows all decoded packets as they arrive
 - **Color-coded Types**: Different colors for position, text, telemetry, etc.
 - **Message Content**: Displays decoded message content when available
@@ -24,6 +49,14 @@ A comprehensive real-time dashboard for visualizing Meshtastic mesh networks wit
 ### 📊 Network Statistics
 - **Live Stats**: Total nodes, connections, packets, and active nodes
 - **Auto-refresh**: Updates every 10 seconds
+- **Modular Architecture**: Separate stats module for clean code organization
+
+### 🎨 Enhanced User Experience
+- **Hardware Images**: Visual hardware identification with device images
+- **Fullscreen Mode**: Toggle fullscreen for map or graph views
+- **Interactive Search**: Search and filter nodes by ID or name
+- **Responsive Design**: Works on desktop and mobile devices
+- **Modern UI**: Dark theme with professional styling
 
 ## Setup
 
@@ -110,17 +143,26 @@ HOST=127.0.0.1 PORT=8080 uv run python run_dashboard.py
    - Thread-safe operations
    - Automatic connection tracking
 
-4. **Frontend** (`templates/index.html`):
-   - Modern responsive web interface
-   - OpenStreetMap integration with Leaflet.js
-   - Network graph with vis.js
-   - Real-time updates via WebSocket
+4. **Frontend Architecture**:
+   - **Main Dashboard** (`static/js/dashboard.js`): Core application logic and URL management
+   - **Map Module** (`static/js/map-view.js`): OpenStreetMap integration and marker management
+   - **Graph Module** (`static/js/graph-view.js`): Network graph visualization with vis.js
+   - **Stats Module** (`static/js/stats.js`): Real-time statistics and metrics
+   - **Modern Responsive UI** (`templates/index.html`): Clean, professional interface
 
 ### Data Flow
 
 ```
-MQTT Broker → MQTT Decoder → SQLite Database → Flask API → WebSocket → Frontend
+MQTT Broker → MQTT Decoder → SQLite Database → Flask API → WebSocket → Frontend Modules
 ```
+
+### Frontend Modules
+
+- **Modular Architecture**: Clean separation of concerns across multiple JavaScript modules
+- **Enhanced Tooltips**: Rich hardware information with device images and specifications
+- **URL State Management**: Shareable links with node focus parameters
+- **Real-time Synchronization**: WebSocket updates across all modules
+- **Cross-Module Communication**: Coordinated updates between map, graph, and stats
 
 ## Supported Message Types
 
@@ -158,9 +200,43 @@ The decoder supports all major Meshtastic message types:
 ## Real-time Features
 
 - **Live Node Discovery**: New nodes appear immediately on map and graph
+- **Enhanced Tooltips**: Rich hover information with hardware images and detailed specs
+- **URL Sharing**: Share direct links to specific nodes with `?node=nodeId` parameter
 - **Connection Tracking**: Automatic connection discovery from packet routing
 - **Signal Quality**: SNR/RSSI tracking for connection health
 - **Activity Monitoring**: Real-time packet stream with decoded content
+- **Cross-View Synchronization**: Click nodes to focus both map and graph simultaneously
+- **Smart Loading**: Professional loading overlays during node focusing operations
+
+## Hardware Support
+
+The dashboard includes visual hardware identification with device images for:
+
+- **Heltec Devices**: All Heltec LoRa modules and development boards
+- **LILYGO T-Beam**: Various T-Beam models and variants
+- **RAK Modules**: RAK4631 and other RAK Wireless devices
+- **ESP32 Boards**: Various ESP32-based development boards
+- **RP2040 Devices**: Raspberry Pi Pico and compatible boards
+- **And many more**: Extensive hardware database with fallback images
+
+## Usage Tips
+
+### Sharing Node Links
+1. Click any node on the map or graph
+2. Copy the updated URL from your browser
+3. Share the link with others to show them the specific node
+4. Recipients will see the dashboard automatically focus on that node
+
+### Understanding Position Quality
+- **Green markers**: Confirmed GPS positions (most accurate)
+- **Yellow markers**: Triangulated positions (estimated from multiple sources)
+- **Red markers**: Estimated positions (least accurate)
+
+### Graph Interactions
+- **Hover over nodes**: See detailed hardware and status information
+- **Click nodes**: Focus both map and graph on the selected node
+- **Hover over edges**: See connection quality and packet statistics
+- **Drag nodes**: Rearrange the graph layout manually
 
 ## Development
 
