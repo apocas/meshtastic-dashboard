@@ -153,13 +153,7 @@ function initializeWebSocket() {
     }
 
     // Fetch fresh node data from the API
-    fetch(`/api/search/node/${nodeId}`)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response.json();
-      })
+    fetchNodeData(nodeId)
       .then(nodeData => {
         updateNode(nodeData);
         // Add node to pending updates for connection refresh
@@ -169,7 +163,7 @@ function initializeWebSocket() {
         window.connectionUpdateTimeout = setTimeout(refreshPendingConnections, 500);
       })
       .catch(error => {
-        console.error('Error fetching fresh node data for', nodeId, ':', error);
+        // Error is already logged in fetchNodeData function
       });
   });
 
@@ -508,8 +502,7 @@ function showNodePopup(nodeId) {
   }
 
   // Get full node details from nodes collection or fetch if needed
-  fetch(`/api/search/node/${nodeId}`)
-    .then(response => response.json())
+  fetchNodeData(nodeId)
     .then(fullNodeData => {
       // Helper function to decode Unicode escape sequences
       function decodeUnicodeEscapes(str) {
@@ -640,7 +633,7 @@ function showNodePopup(nodeId) {
       document.getElementById('nodeModal').style.display = 'block';
     })
     .catch(error => {
-      console.error('Error fetching node details:', error);
+      // Error is already logged in fetchNodeData function
       // Show basic info from network data
       const modalTitle = document.getElementById('nodeModalTitle');
       const modalContent = document.getElementById('nodeModalContent');
@@ -1050,4 +1043,18 @@ function fetchNodesAndFilterConnections(connections, maxDistanceKm = 500) {
       console.error('Error fetching nodes for filtering:', error);
       return connections; // Return unfiltered if error
     });
+}
+
+// API utilities for node data fetching
+async function fetchNodeData(nodeId) {
+  try {
+    const response = await fetch(`/api/search/node/${nodeId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching node data for', nodeId, ':', error);
+    throw error;
+  }
 }
