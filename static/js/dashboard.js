@@ -1,6 +1,7 @@
 // Global variables
 let socket;
 let pendingConnectionUpdates = new Set(); // Track nodes that need connection updates
+let nodeUpdateTimeouts = new Map(); // Debounce node updates
 
 // Global variables for mapping data
 let hardwareModels = {};
@@ -152,19 +153,26 @@ function initializeWebSocket() {
       return;
     }
 
-    // Fetch fresh node data from the API
-    fetchNodeData(nodeId)
-      .then(nodeData => {
-        updateNode(nodeData);
-        // Add node to pending updates for connection refresh
-        pendingConnectionUpdates.add(nodeId);
-        // Debounce connection updates to avoid too many API calls
-        clearTimeout(window.connectionUpdateTimeout);
-        window.connectionUpdateTimeout = setTimeout(refreshPendingConnections, 500);
-      })
-      .catch(error => {
-        // Error is already logged in fetchNodeData function
-      });
+    // Debounce node updates to prevent rapid-fire API calls for the same node
+    clearTimeout(nodeUpdateTimeouts.get(nodeId));
+    nodeUpdateTimeouts.set(nodeId, setTimeout(() => {
+      // Fetch fresh node data from the API
+      fetchNodeData(nodeId)
+        .then(nodeData => {
+          updateNode(nodeData);
+          // Add node to pending updates for connection refresh
+          pendingConnectionUpdates.add(nodeId);
+          // Debounce connection updates to avoid too many API calls
+          clearTimeout(window.connectionUpdateTimeout);
+          window.connectionUpdateTimeout = setTimeout(refreshPendingConnections, 500);
+        })
+        .catch(error => {
+          // Error is already logged in fetchNodeData function
+        });
+        
+      // Clean up the timeout reference
+      nodeUpdateTimeouts.delete(nodeId);
+    }, 100)); // 100ms debounce delay
   });
 
   socket.on('packet_update', function (data) {
