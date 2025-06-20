@@ -12,16 +12,16 @@ let roles = {};
 function updateUrlWithFocusedNode(nodeId) {
   const url = new URL(window.location);
   if (nodeId) {
-    url.searchParams.set('focus', nodeId);
+    url.searchParams.set('node', nodeId);
   } else {
-    url.searchParams.delete('focus');
+    url.searchParams.delete('node');
   }
   window.history.replaceState({}, '', url);
 }
 
 function getFocusedNodeFromUrl() {
   const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get('focus');
+  return urlParams.get('node');
 }
 
 function focusNodeFromUrl() {
