@@ -13,7 +13,7 @@ body {
 .container {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: 60px 1fr 200px;
+    grid-template-rows: 60px 1fr 40px;
     height: 100vh;
     gap: 10px;
     padding: 10px;
@@ -593,4 +593,56 @@ body {
 /* Hide other elements when in fullscreen mode */
 body.has-fullscreen .container > *:not(.fullscreen-mode) {
     display: none !important;
+}
+
+/* Collapsible activity feed */
+.collapse-btn {
+    background: #2d3748;
+    border: 1px solid #4fd1c7;
+    color: #4fd1c7;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    margin-left: 10px;
+    min-width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.collapse-btn:hover {
+    background: #4fd1c7;
+    color: #2d3748;
+    transform: scale(1.05);
+}
+
+/* Collapsed state for activity feed (default) */
+.container.activity-collapsed {
+    grid-template-rows: 60px 1fr 40px;
+}
+
+.container.activity-collapsed .log-container {
+    min-height: 40px;
+}
+
+.container.activity-collapsed .log-content {
+    display: none;
+}
+
+/* Expanded state for activity feed */
+.container:not(.activity-collapsed) {
+    grid-template-rows: 60px 1fr 200px;
+}
+
+.container:not(.activity-collapsed) .log-container {
+    min-height: 200px;
+}
+
+.container:not(.activity-collapsed) .log-content {
+    display: block;
 }

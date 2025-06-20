@@ -1490,3 +1490,37 @@ function refreshPendingConnections() {
             pendingConnectionUpdates.clear();
         });
 }
+
+// Activity feed collapse functionality
+function toggleActivityFeed() {
+    const container = document.querySelector('.container');
+    const toggleBtn = document.getElementById('activityToggle');
+    
+    const isCollapsed = container.classList.contains('activity-collapsed');
+    
+    if (isCollapsed) {
+        // Expand
+        container.classList.remove('activity-collapsed');
+        toggleBtn.innerHTML = '−';
+        toggleBtn.title = 'Collapse Activity Feed';
+        
+        console.log('Activity feed expanded');
+    } else {
+        // Collapse
+        container.classList.add('activity-collapsed');
+        toggleBtn.innerHTML = '+';
+        toggleBtn.title = 'Expand Activity Feed';
+        
+        console.log('Activity feed collapsed');
+    }
+    
+    // Trigger map and network resize after layout change
+    setTimeout(() => {
+        if (map) {
+            map.invalidateSize();
+        }
+        if (network) {
+            network.fit();
+        }
+    }, 300);
+}

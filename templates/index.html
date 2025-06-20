@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container">
+    <div class="container activity-collapsed">
         <div class="header">
             <div class="header-left">
                 <div class="title">🌐 Meshtastic Dashboard</div>
@@ -70,8 +70,11 @@
             <div id="network"></div>
         </div>
         
-        <div class="log-container">
-            <div class="log-header">📡 Live Activity Feed</div>
+        <div class="log-container" id="logContainer">
+            <div class="log-header">
+                📡 Live Activity Feed 
+                <button class="collapse-btn" onclick="toggleActivityFeed()" id="activityToggle" title="Expand Activity Feed">+</button>
+            </div>
             <div class="log-content" id="log-content">
                 <div class="log-entry">
                     <span class="timestamp">Waiting for data...</span>
