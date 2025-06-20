@@ -71,6 +71,18 @@ function initializeMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
     
+    // Add event listeners to clean up ping animations during map interactions
+    map.on('movestart zoomstart', function() {
+        // Remove any active ping circles when map starts moving
+        map.eachLayer(function(layer) {
+            if (layer.options && (layer.options.className === 'leaflet-ping-circle' || 
+                                layer.options.className === 'leaflet-ping-circle-secondary' ||
+                                layer.options.className === 'leaflet-ping-circle-inner')) {
+                map.removeLayer(layer);
+            }
+        });
+    });
+    
     // Create separate layer groups to control z-order
     // Connection layer first (will be below)
     window.connectionLayer = L.layerGroup().addTo(map);
@@ -163,6 +175,27 @@ function initializeNetwork() {
     };
     
     network = new vis.Network(container, data, options);
+    
+    // Add event listeners to clean up ping animations during network interactions
+    network.on('dragStart', function() {
+        // Remove any active network ping animations when dragging starts
+        const pings = document.querySelectorAll('.ping-node');
+        pings.forEach(ping => {
+            if (ping.parentNode) {
+                ping.parentNode.removeChild(ping);
+            }
+        });
+    });
+    
+    network.on('zoom', function() {
+        // Remove any active network ping animations when zooming
+        const pings = document.querySelectorAll('.ping-node');
+        pings.forEach(ping => {
+            if (ping.parentNode) {
+                ping.parentNode.removeChild(ping);
+            }
+        });
+    });
     
     // Network event handlers
     network.on('click', function(params) {
@@ -282,6 +315,188 @@ function ensureNodeExists(nodeId) {
     }
 }
 
+function showMapPing(nodeId) {
+    console.log('showMapPing called for node:', nodeId);
+    const marker = mapMarkers[nodeId];
+    if (!marker) {
+        console.log('No marker found for node:', nodeId, 'Available markers:', Object.keys(mapMarkers));
+        return;
+    }
+    
+    console.log('Marker found, creating ping...');
+    
+    // Get marker's lat/lng position
+    const latLng = marker.getLatLng();
+    console.log('Marker lat/lng:', latLng);
+    
+    // Calculate radius based on zoom level to ensure visibility at all zoom levels
+    const currentZoom = map.getZoom();
+    const baseRadius = Math.pow(2, (15 - currentZoom)) * 30; // Reduced from 50 to 30
+    console.log('Current zoom:', currentZoom, 'Base radius:', baseRadius);
+    
+    // Create multiple ping circles for more dramatic effect
+    const pingRadius1 = L.circle(latLng, {
+        radius: baseRadius * 1.5, // Reduced from 2 to 1.5
+        color: '#4fd1c7',
+        fillColor: '#4fd1c7',
+        fillOpacity: 0.4,
+        weight: 4,
+        className: 'leaflet-ping-circle'
+    }).addTo(map);
+    
+    const pingRadius2 = L.circle(latLng, {
+        radius: baseRadius * 1.0, // Reduced from 1.2 to 1.0
+        color: '#81e6d9',
+        fillColor: '#81e6d9',
+        fillOpacity: 0.3,
+        weight: 3,
+        className: 'leaflet-ping-circle-secondary'
+    }).addTo(map);
+    
+    // Add a third inner circle for more dramatic effect
+    const pingRadius3 = L.circle(latLng, {
+        radius: baseRadius * 0.5, // Reduced from 0.6 to 0.5
+        color: '#ffffff',
+        fillColor: '#ffffff',
+        fillOpacity: 0.6,
+        weight: 2,
+        className: 'leaflet-ping-circle-inner'
+    }).addTo(map);
+    
+    console.log('Ping circles added to map with base radius:', baseRadius);
+    
+    // Animate the circles by gradually increasing radius and decreasing opacity
+    const animationDuration = 1200; // Match graph ping duration in milliseconds
+    const startTime = Date.now();
+    
+    const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / animationDuration, 1); // 0 to 1 over 1200ms
+        
+        // Animate first circle (largest, outermost)
+        const radius1 = baseRadius * 1.5 + (progress * baseRadius * 5); // Reduced from 8 to 5
+        const opacity1 = 0.4 * (1 - progress); // Fade out
+        pingRadius1.setRadius(radius1);
+        pingRadius1.setStyle({ 
+            fillOpacity: opacity1, 
+            opacity: opacity1 * 1.5, // Border more visible
+            weight: 4 - (progress * 2) // Thinner as it expands
+        });
+        
+        // Animate second circle (delayed start)
+        const delay2 = 0.2; // Start at 20% of total animation
+        if (progress > delay2) {
+            const progress2 = Math.min((progress - delay2) / (1 - delay2), 1);
+            const radius2 = baseRadius * 1.0 + (progress2 * baseRadius * 4);
+            const opacity2 = 0.3 * (1 - progress2);
+            pingRadius2.setRadius(radius2);
+            pingRadius2.setStyle({ 
+                fillOpacity: opacity2, 
+                opacity: opacity2 * 1.8,
+                weight: 3 - (progress2 * 1.5)
+            });
+        }
+        
+        // Animate third circle (most delayed, stays small longer)
+        const delay3 = 0.4; // Start at 40% of total animation
+        if (progress > delay3) {
+            const progress3 = Math.min((progress - delay3) / (1 - delay3), 1);
+            const radius3 = baseRadius * 0.5 + (progress3 * baseRadius * 2);
+            const opacity3 = 0.6 * (1 - progress3);
+            pingRadius3.setRadius(radius3);
+            pingRadius3.setStyle({ 
+                fillOpacity: opacity3, 
+                opacity: opacity3 * 2,
+                weight: Math.max(1, 2 - (progress3 * 1))
+            });
+        }
+        
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            // Remove circles when animation is complete
+            map.removeLayer(pingRadius1);
+            map.removeLayer(pingRadius2);
+            map.removeLayer(pingRadius3);
+            console.log('Ping animation completed and circles removed');
+        }
+    };
+    
+    // Start animation
+    requestAnimationFrame(animate);
+}
+
+function showGraphPing(nodeId) {
+    console.log('showGraphPing called for node:', nodeId);
+    if (!network || typeof vis === 'undefined') {
+        console.log('Network or vis not available');
+        return;
+    }
+    
+    try {
+        // Get node position in the network view
+        const nodePosition = network.getPositions([nodeId]);
+        console.log('Node position in network:', nodePosition);
+        if (!nodePosition[nodeId]) {
+            console.log('No position found for node in network');
+            return;
+        }
+        
+        const canvasPosition = network.canvasToDOM(nodePosition[nodeId]);
+        console.log('Canvas position:', canvasPosition);
+        
+        // Create ping element
+        const ping = document.createElement('div');
+        ping.className = 'ping-node';
+        ping.style.left = (canvasPosition.x - 15) + 'px';
+        ping.style.top = (canvasPosition.y - 15) + 'px';
+        ping.style.width = '30px';
+        ping.style.height = '30px';
+        ping.style.position = 'absolute';
+        ping.style.zIndex = '1000';
+        
+        // Add to network container
+        const networkContainer = document.getElementById('network');
+        networkContainer.style.position = 'relative';
+        networkContainer.appendChild(ping);
+        
+        console.log('Graph ping added, will remove in 1200ms');
+        // Remove after animation completes
+        setTimeout(() => {
+            if (ping.parentNode) ping.parentNode.removeChild(ping);
+            console.log('Graph ping removed');
+        }, 1200);
+    } catch (error) {
+        console.log('Could not show graph ping for node:', nodeId, error);
+    }
+}
+
+function showNodeUpdatePing(nodeId) {
+    // Show ping on map if node has a marker
+    showMapPing(nodeId);
+    
+    // Show ping on graph
+    showGraphPing(nodeId);
+    
+    console.log('Showing update ping for node:', nodeId);
+}
+
+// Test function to manually trigger ping (for debugging)
+function testPing() {
+    // Test with the first available marker
+    const nodeIds = Object.keys(mapMarkers);
+    if (nodeIds.length > 0) {
+        const testNodeId = nodeIds[0];
+        console.log('Testing ping with node:', testNodeId);
+        showNodeUpdatePing(testNodeId);
+    } else {
+        console.log('No markers available for ping test');
+    }
+}
+
+// Make test function globally available for console testing
+window.testPing = testPing;
+
 function updateNode(nodeData) {
     const nodeId = nodeData.node_id;
     
@@ -377,6 +592,9 @@ function updateNode(nodeData) {
     
     // Check if any existing connections can now draw map lines
     redrawMapConnectionsForNode(nodeId);
+    
+    // Show visual ping effect for the updated node
+    showNodeUpdatePing(nodeId);
     
     addLogEntry('nodeinfo', `Node ${nodeData.short_name || nodeId.slice(-4)} updated`);
 }

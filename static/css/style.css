@@ -728,3 +728,96 @@ body.has-fullscreen .container > *:not(.fullscreen-mode) {
 .container:not(.activity-collapsed) .log-content {
     display: block;
 }
+
+/* Ping Animation Effects */
+.ping-animation {
+    position: absolute;
+    border: 2px solid #4fd1c7;
+    border-radius: 50%;
+    background-color: rgba(79, 209, 199, 0.2);
+    pointer-events: none;
+    z-index: 10000 !important;
+    animation: ping 1.5s ease-out forwards;
+    box-shadow: 0 0 10px rgba(79, 209, 199, 0.5);
+}
+
+.ping-animation-secondary {
+    position: absolute;
+    border: 2px solid #81e6d9;
+    border-radius: 50%;
+    background-color: rgba(129, 230, 217, 0.1);
+    pointer-events: none;
+    z-index: 9999 !important;
+    animation: ping 1.5s ease-out 0.3s forwards;
+    box-shadow: 0 0 8px rgba(129, 230, 217, 0.3);
+}
+
+@keyframes ping {
+    0% {
+        transform: scale(0.5);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(2);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(3);
+        opacity: 0;
+    }
+}
+
+/* Map ping specific styles */
+.leaflet-ping-container {
+    position: relative;
+    pointer-events: none;
+}
+
+.leaflet-ping-circle {
+    pointer-events: none !important;
+    z-index: 1000 !important;
+}
+
+.leaflet-ping-circle-secondary {
+    pointer-events: none !important;
+    z-index: 999 !important;
+}
+
+.leaflet-ping-circle-inner {
+    pointer-events: none !important;
+    z-index: 1001 !important;
+}
+
+/* Graph ping specific styles */
+.vis-network .ping-node {
+    position: absolute;
+    border: 3px solid #4fd1c7;
+    border-radius: 50%;
+    background-color: rgba(79, 209, 199, 0.3);
+    pointer-events: none;
+    z-index: 10000 !important;
+    animation: graphPing 1.2s ease-out forwards;
+    box-shadow: 0 0 15px rgba(79, 209, 199, 0.6);
+}
+
+.ping-node {
+    position: absolute;
+    border: 3px solid #4fd1c7;
+    border-radius: 50%;
+    background-color: rgba(79, 209, 199, 0.3);
+    pointer-events: none;
+    z-index: 10000 !important;
+    animation: graphPing 1.2s ease-out forwards;
+    box-shadow: 0 0 15px rgba(79, 209, 199, 0.6);
+}
+
+@keyframes graphPing {
+    0% {
+        transform: scale(0.8);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
