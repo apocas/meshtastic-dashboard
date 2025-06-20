@@ -31,14 +31,6 @@
                         <div class="search-dropdown" id="searchDropdown"></div>
                     </div>
                 </div>
-                <div class="timeframe-selector">
-                    <select id="timeframeSelect" class="timeframe-select" onchange="updateTimeframe()">
-                        <option value="12">Last 12 hours</option>
-                        <option value="24">Last 24 hours</option>
-                        <option value="48" selected>Last 48 hours</option>
-                        <option value="72">Last 72 hours</option>
-                    </select>
-                </div>
             </div>
             <div class="header-right">
                 <div class="stats">
@@ -57,6 +49,27 @@
                     <div class="stat-item">
                         <div class="stat-label">Active</div>
                         <div class="stat-value" id="stat-active">0</div>
+                    </div>
+                </div>
+                <div class="menu-container">
+                    <button class="menu-btn" onclick="toggleMenu()" id="menuBtn" title="Menu">⚙️</button>
+                    <div class="menu-dropdown" id="menuDropdown">
+                        <div class="menu-section">
+                            <div class="menu-label">⏱️ Timeframe</div>
+                            <select id="timeframeSelect" class="timeframe-select" onchange="updateTimeframe()">
+                                <option value="12">Last 12 hours</option>
+                                <option value="24">Last 24 hours</option>
+                                <option value="48" selected>Last 48 hours</option>
+                                <option value="72">Last 72 hours</option>
+                            </select>
+                        </div>
+                        <div class="menu-divider"></div>
+                        <div class="menu-section">
+                            <div class="menu-label">ℹ️ About</div>
+                            <a href="https://github.com/apocas/meshtastic-dashboard" target="_blank" class="menu-link">
+                                📁 GitHub Repository
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

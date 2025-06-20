@@ -1531,3 +1531,32 @@ function toggleActivityFeed() {
         }
     }, 300);
 }
+
+// Menu functionality
+function toggleMenu() {
+    const menuDropdown = document.getElementById('menuDropdown');
+    menuDropdown.classList.toggle('show');
+}
+
+// Close menu when clicking outside
+document.addEventListener('click', function(event) {
+    const menuContainer = document.querySelector('.menu-container');
+    const menuDropdown = document.getElementById('menuDropdown');
+    
+    if (menuContainer && !menuContainer.contains(event.target)) {
+        menuDropdown.classList.remove('show');
+    }
+});
+
+// Close modals when clicking outside of them
+window.addEventListener('click', function(event) {
+    const nodeModal = document.getElementById('nodeModal');
+    const searchModal = document.getElementById('searchModal');
+    
+    if (event.target === nodeModal) {
+        closeNodeModal();
+    }
+    if (event.target === searchModal) {
+        closeSearchModal();
+    }
+});

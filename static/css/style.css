@@ -78,6 +78,88 @@ body {
     color: #4fd1c7;
 }
 
+/* Menu Container */
+.menu-container {
+    position: relative;
+}
+
+.menu-btn {
+    background-color: #4a5568;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s ease;
+}
+
+.menu-btn:hover {
+    background-color: #2d3748;
+}
+
+.menu-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: #2d3748;
+    border: 1px solid #4a5568;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    min-width: 200px;
+    z-index: 1000;
+    display: none;
+    margin-top: 5px;
+}
+
+.menu-dropdown.show {
+    display: block;
+}
+
+.menu-section {
+    padding: 15px;
+}
+
+.menu-label {
+    font-size: 12px;
+    color: #a0aec0;
+    font-weight: bold;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.menu-item {
+    padding: 8px 0;
+    cursor: pointer;
+    color: #ffffff;
+    transition: color 0.2s ease;
+    font-size: 14px;
+}
+
+.menu-item:hover {
+    color: #4fd1c7;
+}
+
+.menu-link {
+    display: block;
+    padding: 8px 0;
+    color: #ffffff;
+    text-decoration: none;
+    transition: color 0.2s ease;
+    font-size: 14px;
+}
+
+.menu-link:hover {
+    color: #4fd1c7;
+}
+
+.menu-divider {
+    height: 1px;
+    background-color: #4a5568;
+    margin: 0 15px;
+}
+
 .map-container {
     background-color: #2d3748;
     border-radius: 8px;
