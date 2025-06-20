@@ -281,26 +281,13 @@ function loadInitialData() {
         })
         .catch(error => console.error('Error loading initial data:', error));
     
-    // Load stats
-    loadStats();
-    setInterval(loadStats, 10000); // Update every 10 seconds
+    // Initialize stats
+    if (window.statsModule) {
+        window.statsModule.initialize();
+    }
 }
 
-function loadStats() {
-    // Get the current timeframe
-    const timeframeSelect = document.getElementById('timeframeSelect');
-    const selectedHours = timeframeSelect ? timeframeSelect.value : 48;
-    
-    fetch(`/api/stats?hours=${selectedHours}`)
-        .then(response => response.json())
-        .then(stats => {
-            document.getElementById('stat-nodes').textContent = stats.total_nodes || 0;
-            document.getElementById('stat-connections').textContent = stats.active_connections || 0;
-            document.getElementById('stat-packets').textContent = stats.recent_packets || 0;
-            document.getElementById('stat-active').textContent = stats.nodes_with_position || 0;
-        })
-        .catch(error => console.error('Error updating stats:', error));
-}
+
 
 function loadMqttInfo() {
     // First, check if the element exists
@@ -1443,7 +1430,9 @@ function updateTimeframe() {
     loadConnections(selectedHours);
     
     // Update stats with new timeframe
-    loadStats();
+    if (window.statsModule) {
+        window.statsModule.refresh();
+    }
 }
 
 // Function to load connections with specified timeframe
