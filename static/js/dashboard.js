@@ -198,7 +198,11 @@ function loadInitialData() {
     })
     .then(response => response.json())
     .then(data => {
-      data.forEach(connection => updateConnection(connection));
+      // Fetch nodes data and filter connections by distance before processing them
+      return fetchNodesAndFilterConnections(data);
+    })
+    .then(filteredConnections => {
+      filteredConnections.forEach(connection => updateConnection(connection));
       // Force redraw all map connections after both nodes and connections are loaded
       setTimeout(() => {
         if (window.mapModule) {
@@ -731,17 +735,25 @@ function loadConnections(hours = 48) {
     .then(response => response.json())
     .then(data => {
       // Clear existing connections
-      if (typeof vis !== 'undefined' && edges) {
-        edges.clear();
+      if (window.graphModule && window.graphModule.clearConnections) {
+        window.graphModule.clearConnections();
       }
-      clearMapConnections();
+      if (window.mapModule && window.mapModule.clearConnections) {
+        window.mapModule.clearConnections();
+      }
 
-      // Update with new connections
-      data.forEach(connection => updateConnection(connection));
+      // Fetch nodes data and filter connections by distance before processing them
+      return fetchNodesAndFilterConnections(data);
+    })
+    .then(filteredConnections => {
+      // Update with filtered connections
+      filteredConnections.forEach(connection => updateConnection(connection));
 
-      // Force redraw all map connections
+      // Force redraw all map connections (now with already filtered data)
       setTimeout(() => {
-        redrawAllMapConnections();
+        if (window.mapModule && window.mapModule.redrawAllConnections) {
+          window.mapModule.redrawAllConnections();
+        }
       }, 200);
     })
     .catch(error => {
@@ -749,26 +761,36 @@ function loadConnections(hours = 48) {
     });
 }
 
-function updateNetworkConnections(connections) {
+async function updateNetworkConnections(connections) {
   // Clear existing network connections
   if (typeof vis !== 'undefined' && edges) {
     edges.clear();
   }
 
-  // Add new connections to network
-  connections.forEach(connection => updateConnection(connection));
+  // Fetch nodes data and filter connections by distance before adding them
+  const filteredConnections = await fetchNodesAndFilterConnections(connections);
+
+  // Add filtered connections to network
+  filteredConnections.forEach(connection => updateConnection(connection));
 }
 
-function updateMapConnections(connections) {
+async function updateMapConnections(connections) {
   // Clear existing map connections
-  clearMapConnections();
+  if (window.mapModule && window.mapModule.clearConnections) {
+    window.mapModule.clearConnections();
+  }
 
-  // Add new connections to map
-  connections.forEach(connection => updateConnection(connection));
+  // Fetch nodes data and filter connections by distance before adding them
+  const filteredConnections = await fetchNodesAndFilterConnections(connections);
+
+  // Add filtered connections to map
+  filteredConnections.forEach(connection => updateConnection(connection));
 
   // Redraw all map connections
   setTimeout(() => {
-    redrawAllMapConnections();
+    if (window.mapModule && window.mapModule.redrawAllConnections) {
+      window.mapModule.redrawAllConnections();
+    }
   }, 200);
 }
 
@@ -894,12 +916,18 @@ function refreshPendingConnections() {
   fetch(`/api/connections?hours=${selectedHours}&nodes=${nodeList}`)
     .then(response => response.json())
     .then(connections => {
-      // Update connections for these specific nodes
-      connections.forEach(connection => updateConnection(connection));
+      // Fetch nodes data and filter connections by distance before updating them
+      return fetchNodesAndFilterConnections(connections);
+    })
+    .then(filteredConnections => {
+      // Update filtered connections for these specific nodes
+      filteredConnections.forEach(connection => updateConnection(connection));
 
       // Force redraw map connections
       setTimeout(() => {
-        redrawAllMapConnections();
+        if (window.mapModule && window.mapModule.redrawAllConnections) {
+          window.mapModule.redrawAllConnections();
+        }
       }, 100);
     })
     .catch(error => {
@@ -971,3 +999,55 @@ window.addEventListener('click', function (event) {
     closeSearchModal();
   }
 });
+
+/**
+ * Filter connections by distance - centralized filtering function
+ * @param {Array} connections - Array of connection objects
+ * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 500)
+ * @returns {Array} Filtered array of connections
+ */
+/**
+ * Filter connections by distance - centralized filtering function
+ * @param {Array} connections - Array of connection objects
+ * @param {Object} nodesData - Object containing node data keyed by node ID
+ * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 500)
+ * @returns {Array} Filtered array of connections
+ */
+function filterConnectionsByDistance(connections, nodesData, maxDistanceKm = 500) {
+  if (!nodesData || !window.utilsModule || !window.utilsModule.shouldFilterConnection) {
+    return connections; // If no filtering available, return all connections
+  }
+
+  return connections.filter(connection => {
+    const fromNodeId = connection.from_node.startsWith('!') ? connection.from_node.substring(1) : connection.from_node;
+    const toNodeId = connection.to_node.startsWith('!') ? connection.to_node.substring(1) : connection.to_node;
+    
+    // Apply distance filtering with passed nodes data
+    return !window.utilsModule.shouldFilterConnection(fromNodeId, toNodeId, nodesData, maxDistanceKm);
+  });
+}
+
+/**
+ * Helper function to fetch nodes data and apply distance filtering to connections
+ * @param {Array} connections - Array of connection objects
+ * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 500)
+ * @returns {Promise<Array>} Promise that resolves to filtered connections array
+ */
+function fetchNodesAndFilterConnections(connections, maxDistanceKm = 500) {
+  return fetch('/api/nodes')
+    .then(response => response.json())
+    .then(nodesArray => {
+      // Convert nodes array to object keyed by node_id for efficient lookup
+      const nodesData = nodesArray.reduce((acc, node) => {
+        acc[node.node_id] = node;
+        return acc;
+      }, {});
+      
+      // Filter connections by distance
+      return filterConnectionsByDistance(connections, nodesData, maxDistanceKm);
+    })
+    .catch(error => {
+      console.error('Error fetching nodes for filtering:', error);
+      return connections; // Return unfiltered if error
+    });
+}
