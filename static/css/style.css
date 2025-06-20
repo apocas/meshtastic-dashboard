@@ -612,6 +612,13 @@ body {
     border-right-color: #4a5568 !important;
 }
 
+/* Graph tooltip styles */
+#graph-tooltip img {
+    border-radius: 4px;
+    background: #f5f5f5;
+    padding: 2px;
+}
+
 .timeframe-selector {
     margin-top: 10px;
     display: flex;

@@ -40,6 +40,11 @@ function initializeGraphView() {
                     border: '#4fd1c7',
                     background: '#4a5568'
                 }
+            },
+            chosen: {
+                node: function(values, id, selected, hovering) {
+                    // Disable default hover highlighting to let our custom tooltip work
+                }
             }
         },
         edges: {
@@ -67,7 +72,16 @@ function initializeGraphView() {
         },
         interaction: {
             hover: true,
-            tooltipDelay: 200
+            tooltipDelay: 0,
+            hideEdgesOnDrag: false,
+            hideNodesOnDrag: false,
+            selectConnectedEdges: false
+        },
+        configure: {
+            enabled: false
+        },
+        manipulation: {
+            enabled: false
         }
     };
     
@@ -105,6 +119,116 @@ function initializeGraphView() {
             if (window.mapModule) {
                 window.mapModule.focusOnNode(nodeId);
             }
+        }
+    });
+    
+    // Add hover event handlers for enhanced tooltips
+    network.on('hoverNode', function(params) {
+        console.log('Graph node hovered:', params.node); // Debug log
+        const nodeId = params.node;
+        
+        // Get node data from the vis.js nodes dataset
+        const visNode = nodes.get(nodeId);
+        const nodeData = visNode ? visNode.nodeData : null;
+        
+        if (nodeData) {
+            console.log('Found node data for:', nodeId, nodeData); // Debug log
+            // Generate enhanced tooltip content
+            const tooltipContent = generateEnhancedTooltip(nodeData, nodeId);
+            
+            // Remove any existing tooltip
+            let existingTooltip = document.getElementById('graph-tooltip');
+            if (existingTooltip) {
+                existingTooltip.remove();
+            }
+            
+            // Create tooltip element
+            const tooltip = document.createElement('div');
+            tooltip.id = 'graph-tooltip';
+            tooltip.style.cssText = `
+                position: fixed;
+                z-index: 10000;
+                pointer-events: none;
+                max-width: 350px;
+                opacity: 0;
+                transition: opacity 0.2s ease-in-out;
+                background: white;
+                border-radius: 6px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 12px;
+            `;
+            document.body.appendChild(tooltip);
+            
+            tooltip.innerHTML = tooltipContent;
+            
+            // Get the network canvas position
+            const networkContainer = document.getElementById('network');
+            const canvasRect = networkContainer.getBoundingClientRect();
+            
+            // Position tooltip relative to the node position or mouse
+            const updateTooltipPosition = (e) => {
+                const offset = 15;
+                let x = e.clientX + offset;
+                let y = e.clientY + offset;
+                
+                // Adjust position if tooltip would go off screen
+                const rect = tooltip.getBoundingClientRect();
+                if (x + rect.width > window.innerWidth) {
+                    x = e.clientX - rect.width - offset;
+                }
+                if (y + rect.height > window.innerHeight) {
+                    y = e.clientY - rect.height - offset;
+                }
+                
+                tooltip.style.left = x + 'px';
+                tooltip.style.top = y + 'px';
+            };
+            
+            // Position tooltip initially
+            const currentEvent = params.event || window.event;
+            if (currentEvent) {
+                updateTooltipPosition(currentEvent);
+            } else {
+                // Fallback: position near the network container
+                tooltip.style.left = (canvasRect.left + 20) + 'px';
+                tooltip.style.top = (canvasRect.top + 20) + 'px';
+            }
+            
+            // Add mouse move listener for tooltip positioning
+            const onMouseMove = (e) => updateTooltipPosition(e);
+            document.addEventListener('mousemove', onMouseMove);
+            
+            // Store reference to remove listener later
+            tooltip._mouseMoveHandler = onMouseMove;
+            
+            // Show tooltip
+            requestAnimationFrame(() => {
+                tooltip.style.opacity = '1';
+            });
+        } else {
+            console.log('No node data available for:', nodeId); // Debug log
+        }
+    });
+    
+    network.on('blurNode', function(params) {
+        // Hide tooltip when mouse leaves node
+        const tooltip = document.getElementById('graph-tooltip');
+        if (tooltip) {
+            tooltip.style.opacity = '0';
+            
+            // Remove mouse move listener
+            if (tooltip._mouseMoveHandler) {
+                document.removeEventListener('mousemove', tooltip._mouseMoveHandler);
+                tooltip._mouseMoveHandler = null;
+            }
+            
+            // Remove tooltip after fade out
+            setTimeout(() => {
+                if (tooltip && tooltip.style.opacity === '0') {
+                    tooltip.remove();
+                }
+            }, 200);
         }
     });
 }
@@ -185,8 +309,8 @@ function updateNetworkNode(nodeData) {
     const networkNode = {
         id: nodeId,
         label: decodedShortName || nodeId.slice(-4),
-        title: `${decodedLongName || 'Unknown'}\nID: ${nodeId}\nPosition Quality: ${nodeData.position_quality || 'unknown'}\nLast seen: ${nodeData.last_seen || 'Never'}`,
-        color: nodeColor
+        color: nodeColor,
+        nodeData: nodeData  // Store the full node data for tooltip access
     };
     
     if (nodes.get(nodeId)) {
@@ -271,7 +395,6 @@ function ensureNodeExists(nodeId) {
         const placeholderNode = {
             id: nodeId,
             label: nodeId, // Show full node ID
-            title: `Node ID: ${nodeId}\nStatus: Unknown`,
             color: {
                 border: '#a0aec0',
                 background: '#e2e8f0',
@@ -386,6 +509,127 @@ function getEdgesDataset() {
  */
 function isVisAvailable() {
     return typeof vis !== 'undefined';
+}
+
+/**
+ * Generate enhanced tooltip content for graph nodes
+ */
+function generateEnhancedTooltip(nodeData, nodeId) {
+    const hardwareName = getHardwareModelName(nodeData.hardware_model);
+    const hardwareImage = getHardwareImagePath(nodeData.hardware_model);
+    const modemPreset = getModemPresetName(nodeData.modem_preset);
+    const region = getRegionName(nodeData.region);
+    const role = getRoleName(nodeData.role);
+    
+    return `
+        <div style="font-family: 'Segoe UI', sans-serif; font-size: 12px; max-width: 350px; background: white; padding: 10px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <img src="${hardwareImage}" alt="${hardwareName}" 
+                     style="width: 40px; height: 40px; object-fit: contain; margin-right: 10px; border-radius: 4px; background: #f5f5f5; padding: 2px;"
+                     onerror="this.src='/static/images/no_image.png'">
+                <div>
+                    <div style="font-weight: bold; margin-bottom: 2px; color: #1a202c;">
+                        ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
+                    </div>
+                    <div style="color: #718096; font-size: 11px;">ID: !${nodeId}</div>
+                    ${nodeData.short_name && nodeData.long_name !== nodeData.short_name ? 
+                        `<div style="color: #718096; font-size: 11px;">Short: ${nodeData.short_name}</div>` : ''}
+                </div>
+            </div>
+            
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px;">
+                <div style="color: #2d3748; margin-bottom: 3px;"><strong>Hardware:</strong> ${hardwareName}</div>
+                ${nodeData.role !== undefined && nodeData.role !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Role:</strong> ${role}</div>` : ''}
+                ${nodeData.modem_preset !== undefined && nodeData.modem_preset !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Modem:</strong> ${modemPreset}</div>` : ''}
+                ${nodeData.region !== undefined && nodeData.region !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Region:</strong> ${region}</div>` : ''}
+                ${nodeData.firmware_version ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Firmware:</strong> ${nodeData.firmware_version}</div>` : ''}
+                ${nodeData.has_default_channel !== undefined && nodeData.has_default_channel !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Default Channel:</strong> ${nodeData.has_default_channel ? 'Yes' : 'No'}</div>` : ''}
+                ${nodeData.is_licensed !== undefined && nodeData.is_licensed !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 3px;"><strong>Licensed:</strong> ${nodeData.is_licensed ? 'Yes' : 'No'}</div>` : ''}
+            </div>
+            
+            ${(nodeData.latitude || nodeData.longitude || nodeData.altitude || nodeData.position_quality) ? `
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px;">
+                <div style="color: #2d3748; font-weight: bold; margin-bottom: 3px;">📍 Location</div>
+                ${nodeData.latitude && nodeData.longitude ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;">
+                        <strong>Coordinates:</strong> ${nodeData.latitude.toFixed(6)}, ${nodeData.longitude.toFixed(6)}
+                     </div>` : ''}
+                ${nodeData.altitude ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Altitude:</strong> ${nodeData.altitude}m</div>` : ''}
+                ${nodeData.position_quality ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Position Quality:</strong> ${nodeData.position_quality}</div>` : ''}
+            </div>` : ''}
+            
+            ${(nodeData.battery_level || nodeData.voltage || nodeData.snr || nodeData.rssi || nodeData.channel) ? `
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px;">
+                <div style="color: #2d3748; font-weight: bold; margin-bottom: 3px;">📊 Status</div>
+                ${nodeData.battery_level ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Battery:</strong> ${nodeData.battery_level}%</div>` : ''}
+                ${nodeData.voltage ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Voltage:</strong> ${nodeData.voltage}V</div>` : ''}
+                ${nodeData.snr ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>SNR:</strong> ${nodeData.snr} dB</div>` : ''}
+                ${nodeData.rssi ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>RSSI:</strong> ${nodeData.rssi} dBm</div>` : ''}
+                ${nodeData.channel !== undefined && nodeData.channel !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Channel:</strong> ${nodeData.channel}</div>` : ''}
+            </div>` : ''}
+            
+            ${nodeData.last_seen ? `
+            <div style="color: #718096; font-size: 11px; margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 6px; text-align: center;">
+                <strong>Last seen:</strong> ${new Date(nodeData.last_seen).toLocaleString()}
+            </div>` : ''}
+        </div>
+    `;
+}
+
+/**
+ * Helper functions for getting display names from mapping data
+ */
+function getHardwareModelName(hwModel) {
+    // Access the global mapping data from dashboard.js
+    if (window.hardwareModels && hwModel !== null && hwModel !== undefined) {
+        return window.hardwareModels[hwModel] || `Hardware ${hwModel}`;
+    }
+    return 'Unknown Hardware';
+}
+
+function getHardwareImagePath(hwModel) {
+    if (hwModel !== null && hwModel !== undefined) {
+        const imageName = Object.keys(window.hardwareModels || {}).find(key => key == hwModel);
+        if (imageName) {
+            const fileName = window.hardwareModels[imageName].replace(/\s+/g, '_').toUpperCase();
+            return `/static/images/devices/${fileName}.png`;
+        }
+    }
+    return '/static/images/no_image.png';
+}
+
+function getModemPresetName(preset) {
+    if (window.modemPresets && preset !== null && preset !== undefined) {
+        return window.modemPresets[preset] || `Preset ${preset}`;
+    }
+    return 'Unknown Preset';
+}
+
+function getRegionName(region) {
+    if (window.regionCodes && region !== null && region !== undefined) {
+        return window.regionCodes[region] || `Region ${region}`;
+    }
+    return 'Unknown Region';
+}
+
+function getRoleName(role) {
+    if (window.roles && role !== null && role !== undefined) {
+        return window.roles[role] || `Role ${role}`;
+    }
+    return 'Unknown Role';
 }
 
 // Export functions for use in other modules
