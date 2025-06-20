@@ -201,7 +201,9 @@ function loadInitialData() {
     .then(response => response.json())
     .then(data => {
       // Fetch nodes data and filter connections by distance before processing them
-      return fetchNodesAndFilterConnections(data);
+      const distanceLimitSelect = document.getElementById('distanceLimitSelect');
+      const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 500;
+      return fetchNodesAndFilterConnections(data, selectedDistance);
     })
     .then(filteredConnections => {
       filteredConnections.forEach(connection => updateConnection(connection));
@@ -719,9 +721,12 @@ function triangulateNode(nodeId) {
 function updateTimeframe() {
   const timeframeSelect = document.getElementById('timeframeSelect');
   const selectedHours = timeframeSelect.value;
+  
+  const distanceLimitSelect = document.getElementById('distanceLimitSelect');
+  const selectedDistance = parseInt(distanceLimitSelect.value);
 
-  // Reload connections with new timeframe
-  loadConnections(selectedHours);
+  // Reload connections with new timeframe and current distance limit
+  loadConnections(selectedHours, selectedDistance);
 
   // Update stats with new timeframe
   if (window.statsModule) {
@@ -729,8 +734,26 @@ function updateTimeframe() {
   }
 }
 
-// Function to load connections with specified timeframe
-function loadConnections(hours = 48) {
+// Function to update the distance limit for displayed connections
+function updateDistanceLimit() {
+  const distanceLimitSelect = document.getElementById('distanceLimitSelect');
+  const selectedDistance = parseInt(distanceLimitSelect.value);
+
+  console.log(`Updating connection distance limit to ${selectedDistance} km`);
+
+  // Reload connections with new distance limit
+  const timeframeSelect = document.getElementById('timeframeSelect');
+  const selectedHours = timeframeSelect.value;
+  loadConnections(selectedHours, selectedDistance);
+
+  // Update stats with new distance limit
+  if (window.statsModule) {
+    window.statsModule.refresh();
+  }
+}
+
+// Function to load connections with specified timeframe and distance limit
+function loadConnections(hours = 48, maxDistanceKm = 500) {
   // Load connections with specified timeframe
   fetch(`/api/connections?hours=${hours}`)
     .then(response => response.json())
@@ -743,8 +766,8 @@ function loadConnections(hours = 48) {
         window.mapModule.clearConnections();
       }
 
-      // Fetch nodes data and filter connections by distance before processing them
-      return fetchNodesAndFilterConnections(data);
+      // Fetch nodes data and filter connections by distance before adding them
+      return fetchNodesAndFilterConnections(data, maxDistanceKm);
     })
     .then(filteredConnections => {
       // Update with filtered connections
