@@ -94,12 +94,7 @@ function initializeGraphView() {
     // Set up one-time auto-fit after initial loading
     initialLoadTimeout = setTimeout(() => {
         if (!hasAutoFitted && nodes.length > 0) {
-            network.fit({
-                animation: {
-                    duration: 1000,
-                    easingFunction: 'easeInOutQuad'
-                }
-            });
+            autoFitGraph();
             hasAutoFitted = true;
         }
     }, 4000); // Auto-fit 4 seconds after initialization

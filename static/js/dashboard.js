@@ -1104,3 +1104,12 @@ async function fetchNodeData(nodeId) {
     throw error;
   }
 }
+
+// Graph auto-fit functionality
+function fitGraphToScreen() {
+  if (window.graphModule && window.graphModule.autoFit) {
+    window.graphModule.autoFit();
+  } else {
+    console.warn('Graph module auto-fit function not available');
+  }
+}
