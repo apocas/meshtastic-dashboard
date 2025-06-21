@@ -87,18 +87,6 @@ function initializeGraphView() {
     
     network = new vis.Network(container, data, options);
     
-    // Auto-fit only once, 4 seconds after initial loading
-    let hasAutoFitted = false;
-    let initialLoadTimeout;
-    
-    // Set up one-time auto-fit after initial loading
-    initialLoadTimeout = setTimeout(() => {
-        if (!hasAutoFitted && nodes.length > 0) {
-            autoFitGraph();
-            hasAutoFitted = true;
-        }
-    }, 4000); // Auto-fit 4 seconds after initialization
-    
     // Add event listeners to clean up ping animations during network interactions
     network.on('dragStart', function() {
         // Remove any active network ping animations when dragging starts

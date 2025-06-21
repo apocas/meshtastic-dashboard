@@ -193,3 +193,5 @@ cython_debug/
 # Meshtastic Dashboard specific
 *.db
 meshtastic.db
+
+.env*
