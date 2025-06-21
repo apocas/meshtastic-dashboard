@@ -87,6 +87,34 @@ function initializeGraphView() {
     
     network = new vis.Network(container, data, options);
     
+    // Auto-fit to show all nodes when the network stabilizes
+    network.on('stabilizationIterationsDone', function() {
+        if (nodes.length > 0) {
+            network.fit({
+                animation: {
+                    duration: 1000,
+                    easingFunction: 'easeInOutQuad'
+                }
+            });
+        }
+    });
+    
+    // Also auto-fit when nodes are added/updated
+    let autoFitTimeout;
+    nodes.on('add', function() {
+        clearTimeout(autoFitTimeout);
+        autoFitTimeout = setTimeout(() => {
+            if (nodes.length > 0) {
+                network.fit({
+                    animation: {
+                        duration: 500,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+            }
+        }, 4000); // Wait 1 second after last node addition
+    });
+    
     // Add event listeners to clean up ping animations during network interactions
     network.on('dragStart', function() {
         // Remove any active network ping animations when dragging starts
@@ -616,6 +644,20 @@ function generateEnhancedTooltip(nodeData, nodeId) {
 }
 
 /**
+ * Auto-fit the graph to show all nodes in the viewport
+ */
+function autoFitGraph() {
+    if (network && nodes.length > 0) {
+        network.fit({
+            animation: {
+                duration: 1000,
+                easingFunction: 'easeInOutQuad'
+            }
+        });
+    }
+}
+
+/**
  * Helper functions for getting display names from mapping data
  */
 function getHardwareModelName(hwModel) {
@@ -670,6 +712,7 @@ window.graphModule = {
     clearConnections: clearNetworkConnections,
     getAllEdges: getAllEdges,
     getAllNodes: getAllNodes,
+    autoFit: autoFitGraph,
     getNetwork: getNetwork,
     getNodesDataset: getNodesDataset,
     getEdgesDataset: getEdgesDataset,

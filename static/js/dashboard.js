@@ -126,7 +126,22 @@ window.addEventListener('load', function () {
   setTimeout(() => {
     focusNodeFromUrl();
   }, 1000);
+
+  // Set up automatic refresh every 30 minutes
+  setupAutoRefresh();
 });
+
+/**
+ * Setup automatic page refresh every 30 minutes
+ */
+function setupAutoRefresh() {
+  const refreshInterval = 30 * 60 * 1000; // 30 minutes in milliseconds
+  
+  setTimeout(() => {
+    console.log('Auto-refreshing dashboard after 30 minutes...');
+    window.location.reload();
+  }, refreshInterval);
+}
 
 
 
