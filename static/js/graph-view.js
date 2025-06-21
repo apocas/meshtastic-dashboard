@@ -87,33 +87,22 @@ function initializeGraphView() {
     
     network = new vis.Network(container, data, options);
     
-    // Auto-fit to show all nodes when the network stabilizes
-    network.on('stabilizationIterationsDone', function() {
-        if (nodes.length > 0) {
+    // Auto-fit only once, 4 seconds after initial loading
+    let hasAutoFitted = false;
+    let initialLoadTimeout;
+    
+    // Set up one-time auto-fit after initial loading
+    initialLoadTimeout = setTimeout(() => {
+        if (!hasAutoFitted && nodes.length > 0) {
             network.fit({
                 animation: {
                     duration: 1000,
                     easingFunction: 'easeInOutQuad'
                 }
             });
+            hasAutoFitted = true;
         }
-    });
-    
-    // Also auto-fit when nodes are added/updated
-    let autoFitTimeout;
-    nodes.on('add', function() {
-        clearTimeout(autoFitTimeout);
-        autoFitTimeout = setTimeout(() => {
-            if (nodes.length > 0) {
-                network.fit({
-                    animation: {
-                        duration: 500,
-                        easingFunction: 'easeInOutQuad'
-                    }
-                });
-            }
-        }, 4000); // Wait 1 second after last node addition
-    });
+    }, 4000); // Auto-fit 4 seconds after initialization
     
     // Add event listeners to clean up ping animations during network interactions
     network.on('dragStart', function() {
