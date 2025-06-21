@@ -484,7 +484,15 @@ def process_decoded_payload(decoded, from_node, to_node, packet_data):
                 if device.get('voltage'):
                     node_data['voltage'] = device['voltage']
             
-            if any(key in node_data for key in ['battery_level', 'voltage']):
+            # Extract environment metrics
+            if 'environment_metrics' in decoded:
+                node_data['environment_metrics'] = decoded['environment_metrics']
+            
+            # Extract power metrics
+            if 'power_metrics' in decoded:
+                node_data['power_metrics'] = decoded['power_metrics']
+            
+            if any(key in node_data for key in ['battery_level', 'voltage', 'environment_metrics', 'power_metrics']):
                 db.update_node(node_data)
                 
                 # Emit node update

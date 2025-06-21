@@ -419,6 +419,50 @@ function generateEnhancedTooltip(nodeData, nodeId) {
                     `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Channel:</strong> ${nodeData.channel}</div>` : ''}
             </div>` : ''}
             
+            ${nodeData.environment_metrics ? `
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px;">
+                <div style="color: #2d3748; font-weight: bold; margin-bottom: 3px;">🌡️ Environment</div>
+                ${nodeData.environment_metrics.temperature !== undefined && nodeData.environment_metrics.temperature !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Temperature:</strong> ${nodeData.environment_metrics.temperature.toFixed(1)}°C</div>` : ''}
+                ${nodeData.environment_metrics.relative_humidity !== undefined && nodeData.environment_metrics.relative_humidity !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Relative Humidity:</strong> ${nodeData.environment_metrics.relative_humidity.toFixed(1)}%</div>` : ''}
+                ${nodeData.environment_metrics.barometric_pressure !== undefined && nodeData.environment_metrics.barometric_pressure !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Barometric Pressure:</strong> ${nodeData.environment_metrics.barometric_pressure.toFixed(1)} hPa</div>` : ''}
+                ${nodeData.environment_metrics.gas_resistance !== undefined && nodeData.environment_metrics.gas_resistance !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Gas Resistance:</strong> ${nodeData.environment_metrics.gas_resistance} Ω</div>` : ''}
+                ${nodeData.environment_metrics.voltage !== undefined && nodeData.environment_metrics.voltage !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Voltage:</strong> ${nodeData.environment_metrics.voltage}V</div>` : ''}
+                ${nodeData.environment_metrics.current !== undefined && nodeData.environment_metrics.current !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Current:</strong> ${nodeData.environment_metrics.current}mA</div>` : ''}
+                ${nodeData.environment_metrics.iaq !== undefined && nodeData.environment_metrics.iaq !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>IAQ:</strong> ${nodeData.environment_metrics.iaq}</div>` : ''}
+                ${nodeData.environment_metrics.wind_direction !== undefined && nodeData.environment_metrics.wind_direction !== null && nodeData.environment_metrics.wind_direction !== 0 ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Wind Direction:</strong> ${nodeData.environment_metrics.wind_direction}°</div>` : ''}
+                ${nodeData.environment_metrics.wind_speed !== undefined && nodeData.environment_metrics.wind_speed !== null && nodeData.environment_metrics.wind_speed !== 0 ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Wind Speed:</strong> ${nodeData.environment_metrics.wind_speed} m/s</div>` : ''}
+                ${nodeData.environment_metrics.wind_gust !== undefined && nodeData.environment_metrics.wind_gust !== null && nodeData.environment_metrics.wind_gust !== 0 ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Wind Gust:</strong> ${nodeData.environment_metrics.wind_gust} m/s</div>` : ''}
+                ${nodeData.environment_metrics.wind_lull !== undefined && nodeData.environment_metrics.wind_lull !== null && nodeData.environment_metrics.wind_lull !== 0 ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>Wind Lull:</strong> ${nodeData.environment_metrics.wind_lull} m/s</div>` : ''}
+            </div>` : ''}
+            
+            ${nodeData.power_metrics ? `
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px;">
+                <div style="color: #2d3748; font-weight: bold; margin-bottom: 3px;">🔋 Power</div>
+                ${nodeData.power_metrics.ch1_voltage !== undefined && nodeData.power_metrics.ch1_voltage !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>CH1 Voltage:</strong> ${nodeData.power_metrics.ch1_voltage}V</div>` : ''}
+                ${nodeData.power_metrics.ch1_current !== undefined && nodeData.power_metrics.ch1_current !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>CH1 Current:</strong> ${nodeData.power_metrics.ch1_current}mA</div>` : ''}
+                ${nodeData.power_metrics.ch2_voltage !== undefined && nodeData.power_metrics.ch2_voltage !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>CH2 Voltage:</strong> ${nodeData.power_metrics.ch2_voltage}V</div>` : ''}
+                ${nodeData.power_metrics.ch2_current !== undefined && nodeData.power_metrics.ch2_current !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>CH2 Current:</strong> ${nodeData.power_metrics.ch2_current}mA</div>` : ''}
+                ${nodeData.power_metrics.ch3_voltage !== undefined && nodeData.power_metrics.ch3_voltage !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>CH3 Voltage:</strong> ${nodeData.power_metrics.ch3_voltage}V</div>` : ''}
+                ${nodeData.power_metrics.ch3_current !== undefined && nodeData.power_metrics.ch3_current !== null ? 
+                    `<div style="color: #2d3748; margin-bottom: 2px; font-size: 11px;"><strong>CH3 Current:</strong> ${nodeData.power_metrics.ch3_current}mA</div>` : ''}
+            </div>` : ''}
+            
             ${nodeData.last_seen ? `
             <div style="color: #718096; font-size: 11px; margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 6px; text-align: center;">
                 <strong>Last seen:</strong> ${new Date(nodeData.last_seen).toLocaleString()}

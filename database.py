@@ -55,6 +55,17 @@ class MeshtasticDB:
                     # Column already exists, ignore
                     pass
             
+            # Add telemetry metrics fields
+            for column_info in [
+                ('environment_metrics', 'TEXT'),  # JSON string for environment data
+                ('power_metrics', 'TEXT')         # JSON string for power data
+            ]:
+                try:
+                    conn.execute(f'ALTER TABLE nodes ADD COLUMN {column_info[0]} {column_info[1]}')
+                except sqlite3.OperationalError:
+                    # Column already exists, ignore
+                    pass
+            
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS packets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,10 +110,15 @@ class MeshtasticDB:
                     
                     for field in ['long_name', 'short_name', 'hardware_model', 'latitude', 'longitude', 'altitude', 
                                   'battery_level', 'voltage', 'snr', 'rssi', 'channel', 'firmware_version', 'role', 'is_licensed',
-                                  'modem_preset', 'region', 'has_default_channel']:
+                                  'modem_preset', 'region', 'has_default_channel', 'environment_metrics', 'power_metrics']:
                         if field in node_data and node_data[field] is not None:
-                            update_fields.append(f"{field} = ?")
-                            update_values.append(node_data[field])
+                            # Convert dict/list fields to JSON strings for storage
+                            if field in ['environment_metrics', 'power_metrics'] and isinstance(node_data[field], dict):
+                                update_fields.append(f"{field} = ?")
+                                update_values.append(json.dumps(node_data[field]))
+                            else:
+                                update_fields.append(f"{field} = ?")
+                                update_values.append(node_data[field])
                     
                     # Set position quality if coordinates are provided
                     if 'latitude' in node_data and 'longitude' in node_data:
@@ -132,8 +148,9 @@ class MeshtasticDB:
                             latitude, longitude, altitude, position_quality, last_seen,
                             battery_level, voltage, snr, rssi, channel,
                             firmware_version, role, is_licensed,
-                            modem_preset, region, has_default_channel
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            modem_preset, region, has_default_channel,
+                            environment_metrics, power_metrics
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         node_data.get('node_id'),
                         node_data.get('long_name'),
@@ -154,7 +171,9 @@ class MeshtasticDB:
                         node_data.get('is_licensed'),
                         node_data.get('modem_preset'),
                         node_data.get('region'),
-                        node_data.get('has_default_channel')
+                        node_data.get('has_default_channel'),
+                        json.dumps(node_data.get('environment_metrics')) if node_data.get('environment_metrics') else None,
+                        json.dumps(node_data.get('power_metrics')) if node_data.get('power_metrics') else None
                     ))
                 
                 conn.commit()
@@ -209,20 +228,50 @@ class MeshtasticDB:
         """Get all nodes"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            return [dict(row) for row in conn.execute('''
+            nodes = []
+            for row in conn.execute('''
                 SELECT * FROM nodes 
                 ORDER BY last_seen DESC
-            ''').fetchall()]
+            ''').fetchall():
+                node = dict(row)
+                # Parse JSON fields
+                if node.get('environment_metrics'):
+                    try:
+                        node['environment_metrics'] = json.loads(node['environment_metrics'])
+                    except (json.JSONDecodeError, TypeError):
+                        node['environment_metrics'] = None
+                if node.get('power_metrics'):
+                    try:
+                        node['power_metrics'] = json.loads(node['power_metrics'])
+                    except (json.JSONDecodeError, TypeError):
+                        node['power_metrics'] = None
+                nodes.append(node)
+            return nodes
     
     def get_nodes_with_position(self):
         """Get only nodes that have coordinates"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            return [dict(row) for row in conn.execute('''
+            nodes = []
+            for row in conn.execute('''
                 SELECT * FROM nodes 
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL
                 ORDER BY last_seen DESC
-            ''').fetchall()]
+            ''').fetchall():
+                node = dict(row)
+                # Parse JSON fields
+                if node.get('environment_metrics'):
+                    try:
+                        node['environment_metrics'] = json.loads(node['environment_metrics'])
+                    except (json.JSONDecodeError, TypeError):
+                        node['environment_metrics'] = None
+                if node.get('power_metrics'):
+                    try:
+                        node['power_metrics'] = json.loads(node['power_metrics'])
+                    except (json.JSONDecodeError, TypeError):
+                        node['power_metrics'] = None
+                nodes.append(node)
+            return nodes
     
     def get_connections(self, from_node=None, to_node=None, nodes=None, hours=72):
         """Get direct RF connections between nodes based on actual radio reception
@@ -339,7 +388,21 @@ class MeshtasticDB:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             result = conn.execute('SELECT * FROM nodes WHERE node_id = ?', (node_id,)).fetchone()
-            return dict(result) if result else None
+            if result:
+                node = dict(result)
+                # Parse JSON fields
+                if node.get('environment_metrics'):
+                    try:
+                        node['environment_metrics'] = json.loads(node['environment_metrics'])
+                    except (json.JSONDecodeError, TypeError):
+                        node['environment_metrics'] = None
+                if node.get('power_metrics'):
+                    try:
+                        node['power_metrics'] = json.loads(node['power_metrics'])
+                    except (json.JSONDecodeError, TypeError):
+                        node['power_metrics'] = None
+                return node
+            return None
     
     def get_packets_by_node(self, node_id, hours=24):
         """Get packets involving a specific node from the last N hours"""
