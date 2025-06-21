@@ -9,6 +9,80 @@ let modemPresets = {};
 let regionCodes = {};
 let roles = {};
 
+// Global cache for nodes data - populated once and maintained via WebSocket updates
+let cachedNodesData = {};
+let isNodesDataLoaded = false;
+
+/**
+ * Get nodes data from cache (should always be available after initial load)
+ * @returns {Object} Nodes data object
+ */
+function getCachedNodesData() {
+  if (!isNodesDataLoaded || Object.keys(cachedNodesData).length === 0) {
+    console.warn('Nodes data not loaded yet, returning empty object');
+    return {};
+  }
+  return cachedNodesData;
+}
+
+/**
+ * Fetch nodes data initially (should only be called once during page load)
+ * @returns {Promise<Object>} Promise that resolves to nodes data object
+ */
+async function fetchInitialNodesData() {
+  if (isNodesDataLoaded) {
+    console.warn('Nodes data already loaded, returning cached data');
+    return cachedNodesData;
+  }
+  
+  try {
+    console.log('Fetching initial nodes data from API...');
+    const response = await fetch('/api/nodes');
+    const nodesArray = await response.json();
+    
+    // Convert to object format and cache
+    cachedNodesData = nodesArray.reduce((acc, node) => {
+      acc[node.node_id] = node;
+      return acc;
+    }, {});
+    
+    isNodesDataLoaded = true;
+    console.log(`Loaded ${nodesArray.length} nodes into cache`);
+    return cachedNodesData;
+  } catch (error) {
+    console.error('Error fetching initial nodes data:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update a specific node in the cache (called when WebSocket updates arrive)
+ * @param {string} nodeId - The node ID to update
+ * @param {Object} nodeData - The updated node data
+ */
+function updateNodeInCache(nodeId, nodeData) {
+  if (isNodesDataLoaded && cachedNodesData) {
+    cachedNodesData[nodeId] = nodeData;
+    console.log(`Updated node ${nodeId} in cache`);
+  } else {
+    console.warn(`Cannot update node ${nodeId} in cache - nodes data not loaded`);
+  }
+}
+
+/**
+ * Add a new node to the cache (called when new nodes are discovered)
+ * @param {string} nodeId - The node ID to add
+ * @param {Object} nodeData - The node data
+ */
+function addNodeToCache(nodeId, nodeData) {
+  if (isNodesDataLoaded && cachedNodesData) {
+    cachedNodesData[nodeId] = nodeData;
+    console.log(`Added new node ${nodeId} to cache`);
+  } else {
+    console.warn(`Cannot add node ${nodeId} to cache - nodes data not loaded`);
+  }
+}
+
 // URL parameter utilities for sharing focused nodes
 function updateUrlWithFocusedNode(nodeId) {
   const url = new URL(window.location);
@@ -175,6 +249,8 @@ function initializeWebSocket() {
       fetchNodeData(nodeId)
         .then(nodeData => {
           updateNode(nodeData);
+          // Update the specific node in cache instead of invalidating entire cache
+          updateNodeInCache(nodeId, nodeData);
           // Add node to pending updates for connection refresh
           pendingConnectionUpdates.add(nodeId);
           // Debounce connection updates to avoid too many API calls
@@ -196,11 +272,13 @@ function initializeWebSocket() {
 }
 
 function loadInitialData() {
-  // Load all nodes (updateNode handles both graph and map)
-  fetch('/api/nodes')
-    .then(response => response.json())
-    .then(data => {
-      data.forEach(node => updateNode(node));
+  // Fetch initial nodes data (this should be the ONLY /api/nodes call ever)
+  fetchInitialNodesData()
+    .then(nodesData => {
+      // Convert back to array format for processing
+      const nodesArray = Object.values(nodesData);
+      nodesArray.forEach(node => updateNode(node));
+      
       // Auto-fit map to show all markers after loading
       setTimeout(() => {
         if (window.mapModule) {
@@ -215,10 +293,11 @@ function loadInitialData() {
     })
     .then(response => response.json())
     .then(data => {
-      // Fetch nodes data and filter connections by distance before processing them
+      // Filter connections by distance using cached nodes data
+      // (No additional /api/nodes requests needed)
       const distanceLimitSelect = document.getElementById('distanceLimitSelect');
       const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
-      return fetchNodesAndFilterConnections(data, selectedDistance);
+      return filterConnectionsByDistance(data, cachedNodesData, selectedDistance);
     })
     .then(filteredConnections => {
       filteredConnections.forEach(connection => updateConnection(connection));
@@ -782,7 +861,7 @@ function loadConnections(hours = 48, maxDistanceKm = 250) {
       }
 
       // Fetch nodes data and filter connections by distance before adding them
-      return fetchNodesAndFilterConnections(data, maxDistanceKm);
+      return filterConnectionsWithCachedNodes(data, maxDistanceKm);
     })
     .then(filteredConnections => {
       // Update with filtered connections
@@ -807,7 +886,7 @@ async function updateNetworkConnections(connections) {
   }
 
   // Fetch nodes data and filter connections by distance before adding them
-  const filteredConnections = await fetchNodesAndFilterConnections(connections);
+  const filteredConnections = await filterConnectionsWithCachedNodes(connections);
 
   // Add filtered connections to network
   filteredConnections.forEach(connection => updateConnection(connection));
@@ -820,7 +899,7 @@ async function updateMapConnections(connections) {
   }
 
   // Fetch nodes data and filter connections by distance before adding them
-  const filteredConnections = await fetchNodesAndFilterConnections(connections);
+  const filteredConnections = await filterConnectionsWithCachedNodes(connections);
 
   // Add filtered connections to map
   filteredConnections.forEach(connection => updateConnection(connection));
@@ -956,7 +1035,7 @@ function refreshPendingConnections() {
     .then(response => response.json())
     .then(connections => {
       // Fetch nodes data and filter connections by distance before updating them
-      return fetchNodesAndFilterConnections(connections);
+      return filterConnectionsWithCachedNodes(connections);
     })
     .then(filteredConnections => {
       // Update filtered connections for these specific nodes
@@ -1067,28 +1146,20 @@ function filterConnectionsByDistance(connections, nodesData, maxDistanceKm = 250
 }
 
 /**
- * Helper function to fetch nodes data and apply distance filtering to connections
+ * Filter connections using cached nodes data (no API calls)
  * @param {Array} connections - Array of connection objects
  * @param {number} maxDistanceKm - Maximum allowed distance in kilometers (default: 250)
- * @returns {Promise<Array>} Promise that resolves to filtered connections array
+ * @returns {Array} Filtered connections array
  */
-function fetchNodesAndFilterConnections(connections, maxDistanceKm = 250) {
-  return fetch('/api/nodes')
-    .then(response => response.json())
-    .then(nodesArray => {
-      // Convert nodes array to object keyed by node_id for efficient lookup
-      const nodesData = nodesArray.reduce((acc, node) => {
-        acc[node.node_id] = node;
-        return acc;
-      }, {});
-      
-      // Filter connections by distance
-      return filterConnectionsByDistance(connections, nodesData, maxDistanceKm);
-    })
-    .catch(error => {
-      console.error('Error fetching nodes for filtering:', error);
-      return connections; // Return unfiltered if error
-    });
+function filterConnectionsWithCachedNodes(connections, maxDistanceKm = 250) {
+  const nodesData = getCachedNodesData();
+  
+  if (Object.keys(nodesData).length === 0) {
+    console.warn('No cached nodes data available for filtering, returning unfiltered connections');
+    return connections;
+  }
+  
+  return filterConnectionsByDistance(connections, nodesData, maxDistanceKm);
 }
 
 // API utilities for node data fetching
