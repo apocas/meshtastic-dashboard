@@ -154,6 +154,16 @@ document.addEventListener('DOMContentLoaded', function () {
   // Initialize interactive search functionality
   initializeSearch();
 
+  // Make main title clickable to refresh/go to root
+  const titleElement = document.querySelector('.title');
+  if (titleElement) {
+    titleElement.style.cursor = 'pointer';
+    titleElement.addEventListener('click', function() {
+      // Navigate to root URL, which effectively refreshes the page
+      window.location.href = '/';
+    });
+  }
+
   // Setup modal close and fullscreen exit on Escape key
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
@@ -583,6 +593,9 @@ function selectSearchResult(nodeId) {
 
   // Hide dropdown
   hideSearchDropdown();
+
+  // Update URL with focused node for sharing (same as clicking a node)
+  updateUrlWithFocusedNode(nodeId);
 
   // Focus on the node in both graph and map
   focusOnNodeInGraph(nodeId);
