@@ -283,6 +283,7 @@ function initializeWebSocket() {
 
 function processNodesInChunks(nodesArray, chunkSize = 200, onComplete) {
   let index = 0;
+  showLoadingOverlay('Loading nodes...', 'Please wait while the dashboard loads all nodes.');
   function processChunk() {
     const end = Math.min(index + chunkSize, nodesArray.length);
     for (let i = index; i < end; i++) {
@@ -292,6 +293,7 @@ function processNodesInChunks(nodesArray, chunkSize = 200, onComplete) {
     if (index < nodesArray.length) {
       setTimeout(processChunk, 200); // Yield to UI thread
     } else if (typeof onComplete === 'function') {
+      hideLoadingOverlay();
       onComplete();
     }
   }
