@@ -4,6 +4,25 @@ from datetime import datetime
 import threading
 import math
 
+def safe_json_dumps(obj):
+    """Safely serialize object to JSON, handling NaN values"""
+    if obj is None:
+        return None
+    
+    def convert_nan_to_none(item):
+        if isinstance(item, dict):
+            return {k: convert_nan_to_none(v) for k, v in item.items()}
+        elif isinstance(item, list):
+            return [convert_nan_to_none(v) for v in item]
+        elif isinstance(item, float) and math.isnan(item):
+            return None
+        else:
+            return item
+    
+    # Convert NaN values to None before JSON serialization
+    safe_obj = convert_nan_to_none(obj)
+    return json.dumps(safe_obj)
+
 class MeshtasticDB:
     def __init__(self, db_path="meshtastic.db"):
         self.db_path = db_path
@@ -115,7 +134,7 @@ class MeshtasticDB:
                             # Convert dict/list fields to JSON strings for storage
                             if field in ['environment_metrics', 'power_metrics'] and isinstance(node_data[field], dict):
                                 update_fields.append(f"{field} = ?")
-                                update_values.append(json.dumps(node_data[field]))
+                                update_values.append(safe_json_dumps(node_data[field]))
                             else:
                                 update_fields.append(f"{field} = ?")
                                 update_values.append(node_data[field])
@@ -172,8 +191,8 @@ class MeshtasticDB:
                         node_data.get('modem_preset'),
                         node_data.get('region'),
                         node_data.get('has_default_channel'),
-                        json.dumps(node_data.get('environment_metrics')) if node_data.get('environment_metrics') else None,
-                        json.dumps(node_data.get('power_metrics')) if node_data.get('power_metrics') else None
+                        safe_json_dumps(node_data.get('environment_metrics')) if node_data.get('environment_metrics') else None,
+                        safe_json_dumps(node_data.get('power_metrics')) if node_data.get('power_metrics') else None
                     ))
                 
                 conn.commit()
