@@ -680,7 +680,7 @@ body {
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    z-index: 9999 !important;
+    z-index: 999;
     background-color: #1a1a1a !important;
     grid-column: unset !important;
     grid-row: unset !important;
@@ -891,4 +891,53 @@ body.has-fullscreen .container > *:not(.fullscreen-mode) {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Temperature map tooltip styles */
+.temp-tooltip {
+    background: rgba(0, 0, 0, 0.8) !important;
+    border: 1px solid #ffffff !important;
+    border-radius: 4px !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+    font-size: 12px !important;
+    padding: 2px 6px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+}
+
+.temp-tooltip::before {
+    display: none !important;
+}
+
+/* Temperature label styles */
+.temperature-label {
+  border: none !important;
+  background: transparent !important;
+}
+
+.node-tooltip {
+  background: white !important;
+  border: 1px solid #ccc !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+  color: #333 !important;
+  font-size: 12px !important;
+  padding: 8px !important;
+}
+
+/* Temperature map button specific styles */
+.temperature-map-btn {
+    margin-left: 5px;
+}
+
+.temperature-map-btn.active {
+    background: #48bb78 !important;
+    border-color: #48bb78 !important;
+    color: #ffffff !important;
+}
+
+.temperature-map-btn.active:hover {
+    background: #38a169 !important;
+    border-color: #38a169 !important;
+    color: #ffffff !important;
 }

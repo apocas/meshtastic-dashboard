@@ -730,6 +730,144 @@ function addPositionQualityLegend() {
     legend.addTo(map);
 }
 
+// Temperature map functionality
+let isTemperatureMapActive = false;
+
+function toggleTemperatureMap() {
+  isTemperatureMapActive = !isTemperatureMapActive;
+  const btn = document.querySelector('.temperature-map-btn');
+  
+  if (isTemperatureMapActive) {
+    showTemperatureMap();
+    btn.textContent = '🗺️';
+    btn.title = 'Show Normal Map';
+    btn.classList.add('active');
+  } else {
+    showAllNodesOnMap();
+    btn.textContent = '🌡️';
+    btn.title = 'Show Temperature Map';
+    btn.classList.remove('active');
+  }
+}
+
+function showTemperatureMap() {
+  // Hide all connections
+  clearMapConnections();
+  
+  // Clear existing markers
+  const mapInstance = map;
+  for (const marker of Object.values(mapMarkers)) {
+    mapInstance.removeLayer(marker);
+  }
+  // Clear the markers object
+  Object.keys(mapMarkers).forEach(key => delete mapMarkers[key]);
+  
+  // Get nodes data from dashboard cache
+  const nodesData = window.getCachedNodesData ? window.getCachedNodesData() : {};
+  let tempNodeCount = 0;
+  
+  for (const nodeId in nodesData) {
+    const node = nodesData[nodeId];
+    // Check if node has valid position and temperature data
+    if (node.latitude && node.longitude && 
+        node.environment_metrics && typeof node.environment_metrics.temperature === 'number') {
+      
+      const temp = node.environment_metrics.temperature;
+      const color = getTemperatureColor(temp);
+      
+      // Create a custom div marker with colored background
+      const tempLabel = L.divIcon({
+        className: 'temperature-label',
+        html: `<div style="background-color: ${color}; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${temp.toFixed(1)}°C</div>`,
+        iconSize: [50, 20],
+        iconAnchor: [25, 10]
+      });
+      
+      const marker = L.marker([node.latitude, node.longitude], {
+        icon: tempLabel
+      }).addTo(mapInstance);
+      
+      // Add hover tooltip with full node info like normal mode
+      const tooltipContent = generateEnhancedTooltip(node, nodeId);
+      marker.bindTooltip(tooltipContent, {
+        direction: 'top',
+        offset: [0, -10]
+      });
+      
+      // Store marker for cleanup
+      mapMarkers[nodeId] = marker;
+      tempNodeCount++;
+    }
+  }
+  
+  console.log(`Temperature map: showing ${tempNodeCount} nodes with temperature data`);
+}
+
+function showAllNodesOnMap() {
+  // Clear temperature markers
+  const mapInstance = map;
+  for (const marker of Object.values(mapMarkers)) {
+    mapInstance.removeLayer(marker);
+  }
+  // Clear the markers object
+  Object.keys(mapMarkers).forEach(key => delete mapMarkers[key]);
+  
+  // Re-add all normal nodes
+  const nodesData = window.getCachedNodesData ? window.getCachedNodesData() : {};
+  for (const nodeId in nodesData) {
+    const node = nodesData[nodeId];
+    if (node.latitude && node.longitude) {
+      updateMapMarker(node);
+    }
+  }
+  
+  // Restore connections
+  const timeframeSelect = document.getElementById('timeframeSelect');
+  const distanceLimitSelect = document.getElementById('distanceLimitSelect');
+  const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
+  const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
+  
+  fetch(`/api/connections?hours=${selectedHours}`)
+    .then(response => response.json())
+    .then(data => {
+      // Use dashboard's filter function if available
+      const filteredConnections = window.filterConnectionsByDistance ? 
+        window.filterConnectionsByDistance(data, nodesData, selectedDistance) : data;
+      filteredConnections.forEach(connection => {
+        if (window.updateConnection) {
+          window.updateConnection(connection);
+        }
+      });
+      setTimeout(() => {
+        redrawAllMapConnections();
+      }, 200);
+    })
+    .catch(error => console.error('Error restoring connections:', error));
+}
+
+function getTemperatureColor(temp) {
+  // Enhanced color scale: blue (cold) to red (hot)
+  // Range: -5°C to 40°C for better real-world coverage
+  const minTemp = -5, maxTemp = 40;
+  const t = Math.max(0, Math.min(1, (temp - minTemp) / (maxTemp - minTemp)));
+  
+  if (t < 0.5) {
+    // Blue to cyan to green
+    const t2 = t * 2;
+    const r = Math.round(0 * (1 - t2) + 0 * t2);
+    const g = Math.round(150 * (1 - t2) + 255 * t2);
+    const b = Math.round(255 * (1 - t2) + 150 * t2);
+    return `rgb(${r},${g},${b})`;
+  } else {
+    // Green to yellow to red
+    const t2 = (t - 0.5) * 2;
+    const r = Math.round(0 * (1 - t2) + 255 * t2);
+    const g = Math.round(255 * (1 - t2) + 150 * t2);
+    const b = Math.round(150 * (1 - t2) + 0 * t2);
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
 // Export functions for use in other modules
 window.mapModule = {
     initialize: initializeMapView,
@@ -742,5 +880,8 @@ window.mapModule = {
     clearConnections: clearMapConnections,
     autoFit: autoFitMap,
     getMarkers: () => mapMarkers,
-    getMap: () => map
+    getMap: () => map,
+    generateTooltip: generateEnhancedTooltip,
+    toggleTemperatureMap: toggleTemperatureMap,
+    isTemperatureMapActive: () => isTemperatureMapActive
 };

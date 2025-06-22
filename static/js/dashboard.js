@@ -389,12 +389,13 @@ function loadMqttInfo() {
 window.loadMqttInfo = loadMqttInfo;
 
 function showNodeUpdatePing(nodeId) {
-  // Show ping on map if node has a marker
-  if (window.mapModule) {
+  // Show ping on map if node has a marker (only if not in temperature map mode)
+  if (window.mapModule && 
+      (!window.mapModule.isTemperatureMapActive || !window.mapModule.isTemperatureMapActive())) {
     window.mapModule.showPing(nodeId);
   }
 
-  // Show ping on graph
+  // Always show ping on graph, even in temperature map mode
   if (window.graphModule) {
     window.graphModule.showPing(nodeId);
   }
@@ -412,12 +413,13 @@ function updateNode(nodeData) {
     window.graphModule.updateNode(nodeData);
   }
 
-  // Update map marker only if node has position
-  if (hasPosition && window.mapModule) {
+  // Update map marker only if node has position AND not in temperature map mode
+  if (hasPosition && window.mapModule && 
+      (!window.mapModule.isTemperatureMapActive || !window.mapModule.isTemperatureMapActive())) {
     window.mapModule.updateMarker(nodeData);
   }
 
-  // Show visual ping effect for the updated node
+  // Show visual ping effect for the updated node (always call, it handles map vs graph internally)
   showNodeUpdatePing(nodeId);
 
   addLogEntry('nodeinfo', `Node ${nodeData.short_name || nodeId.slice(-4)} updated`);
@@ -429,8 +431,9 @@ function updateConnection(connectionData) {
     window.graphModule.updateConnection(connectionData);
   }
 
-  // Update map connection
-  if (window.mapModule) {
+  // Update map connection only if not in temperature map mode
+  if (window.mapModule && 
+      (!window.mapModule.isTemperatureMapActive || !window.mapModule.isTemperatureMapActive())) {
     window.mapModule.updateConnection(connectionData);
   }
 }
@@ -1218,3 +1221,10 @@ function fitGraphToScreen() {
     console.warn('Graph module auto-fit function not available');
   }
 }
+
+// Temperature map functions moved to map-view.js
+window.toggleTemperatureMap = function() {
+  if (window.mapModule && window.mapModule.toggleTemperatureMap) {
+    window.mapModule.toggleTemperatureMap();
+  }
+};
