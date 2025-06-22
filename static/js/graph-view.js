@@ -329,7 +329,7 @@ function updateNetworkNode(nodeData) {
     
     const networkNode = {
         id: nodeId,
-        label: decodedShortName || nodeId.slice(-4),
+        label: nodeId, // Use nodeId instead of shortName
         color: nodeColor,
         nodeData: nodeData  // Store the full node data for tooltip access
     };

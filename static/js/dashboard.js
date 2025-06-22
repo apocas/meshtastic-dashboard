@@ -281,46 +281,65 @@ function initializeWebSocket() {
   });
 }
 
+function processNodesInChunks(nodesArray, chunkSize = 200, onComplete) {
+  let index = 0;
+  function processChunk() {
+    const end = Math.min(index + chunkSize, nodesArray.length);
+    for (let i = index; i < end; i++) {
+      updateNode(nodesArray[i]);
+    }
+    index = end;
+    if (index < nodesArray.length) {
+      setTimeout(processChunk, 200); // Yield to UI thread
+    } else if (typeof onComplete === 'function') {
+      onComplete();
+    }
+  }
+  processChunk();
+}
+
 function loadInitialData() {
   // Fetch initial nodes data (this should be the ONLY /api/nodes call ever)
   fetchInitialNodesData()
     .then(nodesData => {
       // Convert back to array format for processing
       const nodesArray = Object.values(nodesData);
-      nodesArray.forEach(node => updateNode(node));
-      
-      // Auto-fit map to show all markers after loading
-      setTimeout(() => {
-        if (window.mapModule) {
-          window.mapModule.autoFit();
-        }
-      }, 100);
+      // Use chunked processing for large node sets
+      processNodesInChunks(nodesArray, 200, () => {
+        // Auto-fit map to show all markers after loading
+        setTimeout(() => {
+          if (window.mapModule) {
+            window.mapModule.autoFit();
+          }
+        }, 200);
 
-      // Load connections after nodes are loaded and markers are created
-      const timeframeSelect = document.getElementById('timeframeSelect');
-      const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
-      return fetch(`/api/connections?hours=${selectedHours}`);
-    })
-    .then(response => response.json())
-    .then(data => {
-      // Filter connections by distance using cached nodes data
-      // (No additional /api/nodes requests needed)
-      const distanceLimitSelect = document.getElementById('distanceLimitSelect');
-      const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
-      return filterConnectionsByDistance(data, cachedNodesData, selectedDistance);
-    })
-    .then(filteredConnections => {
-      filteredConnections.forEach(connection => updateConnection(connection));
-      // Force redraw all map connections after both nodes and connections are loaded
-      setTimeout(() => {
-        if (window.mapModule) {
-          window.mapModule.redrawAllConnections();
-        }
+        // Load connections after nodes are loaded and markers are created
+        const timeframeSelect = document.getElementById('timeframeSelect');
+        const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
+        fetch(`/api/connections?hours=${selectedHours}`)
+          .then(response => response.json())
+          .then(data => {
+            // Filter connections by distance using cached nodes data
+            // (No additional /api/nodes requests needed)
+            const distanceLimitSelect = document.getElementById('distanceLimitSelect');
+            const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
+            return filterConnectionsByDistance(data, cachedNodesData, selectedDistance);
+          })
+          .then(filteredConnections => {
+            filteredConnections.forEach(connection => updateConnection(connection));
+            // Force redraw all map connections after both nodes and connections are loaded
+            setTimeout(() => {
+              if (window.mapModule) {
+                window.mapModule.redrawAllConnections();
+              }
 
-        // Focus on node from URL parameter after all data is loaded
-        // The function now includes retry logic to wait for views to be ready
-        focusNodeFromUrl();
-      }, 500); // Increased delay to give views more time to initialize
+              // Focus on node from URL parameter after all data is loaded
+              // The function now includes retry logic to wait for views to be ready
+              focusNodeFromUrl();
+            }, 500); // Increased delay to give views more time to initialize
+          })
+          .catch(error => console.error('Error loading initial data:', error));
+      });
     })
     .catch(error => console.error('Error loading initial data:', error));
 
