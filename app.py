@@ -23,18 +23,44 @@ def index():
 
 @app.route('/api/nodes')
 def get_nodes():
-    """API endpoint to get all nodes (including those without coordinates)"""
+    """API endpoint to get all nodes (including those without coordinates)
+    
+    Query parameters:
+        hours: Timeframe in hours to look back (default: 72, max: 72)
+    """
     try:
-        nodes = db.get_nodes()
+        # Get timeframe parameter
+        hours = request.args.get('hours', default=72, type=int)
+        
+        # Validate hours parameter (must be positive and not exceed 72)
+        if hours <= 0 or hours > 72:
+            return jsonify({'error': 'Hours parameter must be between 1 and 72'}), 400
+        
+        # Get nodes with timeframe
+        nodes = db.get_nodes(hours)
+        
         return jsonify(nodes)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/nodes/positioned')
 def get_positioned_nodes():
-    """API endpoint to get only nodes with coordinates (for map display)"""
+    """API endpoint to get only nodes with coordinates (for map display)
+    
+    Query parameters:
+        hours: Timeframe in hours to look back (default: 72, max: 72)
+    """
     try:
-        nodes = db.get_nodes_with_position()
+        # Get timeframe parameter
+        hours = request.args.get('hours', default=72, type=int)
+        
+        # Validate hours parameter (must be positive and not exceed 72)
+        if hours <= 0 or hours > 72:
+            return jsonify({'error': 'Hours parameter must be between 1 and 72'}), 400
+        
+        # Get positioned nodes with timeframe
+        nodes = db.get_nodes_with_position(hours)
+        
         return jsonify(nodes)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -47,7 +73,7 @@ def get_connections():
         from_node: Filter connections from a specific node
         to_node: Filter connections to a specific node
         nodes: Comma-separated list of nodes (filters connections involving any of these nodes)
-        hours: Timeframe in hours to look back (default: 48, allowed: 12, 24, 48, 72)
+        hours: Timeframe in hours to look back (default: 48, max: 72)
     """
     try:
         from_node = request.args.get('from_node')
@@ -58,8 +84,8 @@ def get_connections():
         hours = request.args.get('hours', '48')
         try:
             hours = int(hours)
-            # Validate allowed values
-            if hours not in [12, 24, 48, 72]:
+            # Validate hours parameter (must be positive and not exceed 72)
+            if hours <= 0 or hours > 72:
                 hours = 48  # Default to 48 if invalid value
         except (ValueError, TypeError):
             hours = 48  # Default to 48 if invalid format
@@ -131,8 +157,8 @@ def get_stats():
         if hours not in [12, 24, 48, 72]:
             hours = 48
         
-        nodes = db.get_nodes()
-        positioned_nodes = db.get_nodes_with_position()
+        nodes = db.get_nodes(hours=hours)
+        positioned_nodes = db.get_nodes_with_position(hours=hours)
         connections = db.get_connections(hours=hours)
         total_packets = db.get_recent_packet_count(hours=hours)
         

@@ -17,12 +17,23 @@ function initializeGraphView() {
         return;
     }
     
-    // Initialize vis DataSets
-    nodes = new vis.DataSet();
-    edges = new vis.DataSet();
+    try {
+        // Initialize vis DataSets with error handling
+        nodes = new vis.DataSet();
+        edges = new vis.DataSet();
+    } catch (error) {
+        console.error('Error initializing vis DataSets:', error);
+        document.getElementById('network').innerHTML = '<div style="color: white; text-align: center; padding: 50px;">Network graph initialization failed</div>';
+        return;
+    }
     
     // Initialize network graph
     const container = document.getElementById('network');
+    if (!container) {
+        console.error('Network container element not found');
+        return;
+    }
+    
     const data = { nodes: nodes, edges: edges };
     const options = {
         nodes: {
@@ -85,7 +96,13 @@ function initializeGraphView() {
         }
     };
     
-    network = new vis.Network(container, data, options);
+    try {
+        network = new vis.Network(container, data, options);
+    } catch (error) {
+        console.error('Error creating vis Network:', error);
+        container.innerHTML = '<div style="color: white; text-align: center; padding: 50px;">Network graph creation failed</div>';
+        return;
+    }
     
     // Add event listeners to clean up ping animations during network interactions
     network.on('dragStart', function() {
@@ -262,7 +279,18 @@ function updateNetworkNode(nodeData) {
         return;
     }
     
+    // Validate nodeData thoroughly
+    if (!nodeData || typeof nodeData !== 'object' || nodeData === null) {
+        console.warn('Invalid nodeData passed to updateNetworkNode:', nodeData);
+        return;
+    }
+    
     const nodeId = nodeData.node_id;
+    if (!nodeId || typeof nodeId !== 'string' || nodeId.trim() === '') {
+        console.warn('Node data missing valid node_id:', nodeData);
+        return;
+    }
+    
     const hasPosition = nodeData.latitude != null && nodeData.longitude != null && 
                        nodeData.latitude !== '' && nodeData.longitude !== '' &&
                        !isNaN(nodeData.latitude) && !isNaN(nodeData.longitude);
@@ -326,18 +354,40 @@ function updateNetworkNode(nodeData) {
     // Decode Unicode in names
     const decodedShortName = decodeUnicodeEscapes(nodeData.short_name);
     const decodedLongName = decodeUnicodeEscapes(nodeData.long_name);
-    
+    // Create the network node object with safe values
     const networkNode = {
-        id: nodeId,
-        label: nodeId, // Use nodeId instead of shortName
-        color: nodeColor,
+        id: String(nodeId), // Ensure it's a string
+        label: String(nodeId), // Use nodeId instead of shortName, ensure string
         nodeData: nodeData  // Store the full node data for tooltip access
     };
     
-    if (nodes.get(nodeId)) {
-        nodes.update(networkNode);
-    } else {
-        nodes.add(networkNode);
+    // Only set color if it's defined and valid
+    if (nodeColor && typeof nodeColor === 'object') {
+        networkNode.color = nodeColor;
+    }
+    
+    try {
+        // Check if node already exists before updating
+        const existingNode = nodes.get(nodeId);
+        if (existingNode) {
+            nodes.update(networkNode);
+        } else {
+            nodes.add(networkNode);
+        }
+    } catch (error) {
+        console.error('Error updating network node:', nodeId, error, 'NetworkNode:', networkNode);
+        // Try to recover by creating a minimal node
+        try {
+            const minimalNode = {
+                id: String(nodeId),
+                label: String(nodeId)
+            };
+            if (!nodes.get(nodeId)) {
+                nodes.add(minimalNode);
+            }
+        } catch (recoveryError) {
+            console.error('Failed to recover from node update error:', recoveryError);
+        }
     }
 }
 
@@ -414,24 +464,30 @@ function focusOnNodeInGraph(nodeId) {
  * Ensure a node exists in the graph (create placeholder if needed)
  */
 function ensureNodeExists(nodeId) {
-    if (!nodeId || nodeId === 'ffffffff') return; // Skip invalid or broadcast IDs
+    if (!nodeId || typeof nodeId !== 'string' || nodeId.trim() === '' || nodeId === 'ffffffff') {
+        return; // Skip invalid or broadcast IDs
+    }
     
     if (typeof vis !== 'undefined' && nodes && !nodes.get(nodeId)) {
-        // Create placeholder node
-        const placeholderNode = {
-            id: nodeId,
-            label: nodeId, // Show full node ID
-            color: {
-                border: '#a0aec0',
-                background: '#e2e8f0',
-                highlight: {
-                    border: '#718096',
-                    background: '#cbd5e0'
+        try {
+            // Create placeholder node with safe values
+            const placeholderNode = {
+                id: String(nodeId),
+                label: String(nodeId), // Show full node ID
+                color: {
+                    border: '#a0aec0',
+                    background: '#e2e8f0',
+                    highlight: {
+                        border: '#718096',
+                        background: '#cbd5e0'
+                    }
                 }
-            }
-        };
-        
-        nodes.add(placeholderNode);
+            };
+            
+            nodes.add(placeholderNode);
+        } catch (error) {
+            console.error('Error creating placeholder node:', nodeId, error);
+        }
     }
 }
 
@@ -443,28 +499,74 @@ function updateNetworkConnection(connectionData) {
         return;
     }
     
+    // Validate connectionData
+    if (!connectionData || typeof connectionData !== 'object' || connectionData === null) {
+        console.warn('Invalid connectionData passed to updateNetworkConnection:', connectionData);
+        return;
+    }
+    
+    // Validate required fields
+    if (!connectionData.from_node || !connectionData.to_node) {
+        console.warn('Connection data missing required fields:', connectionData);
+        return;
+    }
+    
     const edgeId = `${connectionData.from_node}-${connectionData.to_node}`;
     
     // Remove leading "!" if present
     const fromNodeId = connectionData.from_node.startsWith('!') ? connectionData.from_node.substring(1) : connectionData.from_node;
     const toNodeId = connectionData.to_node.startsWith('!') ? connectionData.to_node.substring(1) : connectionData.to_node;
     
+    // Validate cleaned node IDs
+    if (!fromNodeId || !toNodeId || fromNodeId.trim() === '' || toNodeId.trim() === '') {
+        console.warn('Invalid cleaned node IDs:', { fromNodeId, toNodeId, original: connectionData });
+        return;
+    }
+    
     ensureNodeExists(fromNodeId);
     ensureNodeExists(toNodeId);
     
-    // Update network graph edge
+    // Create edge object with safe values
     const edge = {
-        id: edgeId,
-        from: fromNodeId,
-        to: toNodeId,
-        label: `${connectionData.packet_count}`,
-        title: `Packets: ${connectionData.packet_count}\nAvg SNR: ${connectionData.avg_snr?.toFixed(1) || 'N/A'}\nAvg RSSI: ${connectionData.avg_rssi || 'N/A'}\nLast seen: ${new Date(connectionData.last_seen).toLocaleString()}`
+        id: String(edgeId),
+        from: String(fromNodeId),
+        to: String(toNodeId),
+        label: String(connectionData.packet_count || '0'),
+        title: `Packets: ${connectionData.packet_count || 0}\nAvg SNR: ${connectionData.avg_snr?.toFixed(1) || 'N/A'}\nAvg RSSI: ${connectionData.avg_rssi || 'N/A'}\nLast seen: ${new Date(connectionData.last_seen).toLocaleString()}`
     };
     
-    if (edges.get(edgeId)) {
-        edges.update(edge);
-    } else {
-        edges.add(edge);
+    try {
+        const existingEdge = edges.get(edgeId);
+        if (existingEdge) {
+            edges.update(edge);
+        } else {
+            edges.add(edge);
+        }
+    } catch (error) {
+        console.error('Error updating network edge:', edgeId, error, 'Edge:', edge);
+        // Try to recover with minimal edge
+        try {
+            const minimalEdge = {
+                id: String(edgeId),
+                from: String(fromNodeId),
+                to: String(toNodeId)
+            };
+            if (!edges.get(edgeId)) {
+                edges.add(minimalEdge);
+            }
+        } catch (recoveryError) {
+            console.error('Failed to recover from edge update error:', recoveryError);
+        }
+    }
+}
+
+/**
+ * Clear all network nodes
+ */
+function clearNetworkNodes() {
+    // Clear existing network nodes
+    if (typeof vis !== 'undefined' && nodes) {
+        nodes.clear();
     }
 }
 
@@ -726,6 +828,7 @@ window.graphModule = {
     updateConnection: updateNetworkConnection,
     updateConnections: updateNetworkConnections,
     clearConnections: clearNetworkConnections,
+    clearNodes: clearNetworkNodes,
     getAllEdges: getAllEdges,
     getAllNodes: getAllNodes,
     autoFit: autoFitGraph,

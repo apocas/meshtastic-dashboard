@@ -181,103 +181,21 @@ function showMapPing(nodeId) {
  * Update or create a map marker for a node
  */
 function updateMapMarker(nodeData) {
+    // Remove existing marker if it exists
     const nodeId = nodeData.node_id;
-    const lat = nodeData.latitude;
-    const lon = nodeData.longitude;
-    
-    if (!lat || !lon || !map || lat == null || lon == null || 
-        lat === '' || lon === '' || isNaN(lat) || isNaN(lon)) {
-        return; // Skip if no valid coordinates or map not ready
-    }
-    
     if (mapMarkers[nodeId]) {
-        // Update existing marker position
-        mapMarkers[nodeId].setLatLng([lat, lon]);
-        
-        // Update popup and tooltip content
-        const popupContent = generateMapPopupContent(nodeData, nodeId);
-        const tooltipContent = generateEnhancedTooltip(nodeData, nodeId);
-        
-        mapMarkers[nodeId].setPopupContent(popupContent);
-        mapMarkers[nodeId].setTooltipContent(tooltipContent);
-    } else {
-        // Determine marker color based on position quality
-        let markerColor = '#4fd1c7'; // Default teal
-        const positionQuality = nodeData.position_quality || 'unknown';
-        
-        switch (positionQuality) {
-            case 'confirmed':
-                markerColor = '#48bb78'; // Green for confirmed GPS positions
-                break;
-            case 'triangulated':
-                markerColor = '#ecc94b'; // Yellow for triangulated positions (3+ points)
-                break;
-            case 'estimated':
-                markerColor = '#e53e3e'; // Red for estimated positions (2 points)
-                break;
-            default:
-                markerColor = '#4fd1c7'; // Default teal (shouldn't appear)
+        // Remove from both possible layers/map
+        if (window.markerLayer) {
+            window.markerLayer.removeLayer(mapMarkers[nodeId]);
         }
-        
-        const marker = L.circleMarker([lat, lon], {
-            radius: 8,
-            fillColor: markerColor,
-            color: '#ffffff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8,
-            pane: 'markerPane'
-        }).addTo(window.markerLayer);
-        
-        // Create detailed popup content
-        const popupContent = generateMapPopupContent(nodeData, nodeId);
-        
-        // Create hover tooltip content (more concise)
-        const tooltipContent = generateEnhancedTooltip(nodeData, nodeId);
-        
-        // Bind popup (click to open)
-        marker.bindPopup(popupContent);
-        
-        // Bind tooltip (hover to show)
-        marker.bindTooltip(tooltipContent, {
-            permanent: false,
-            direction: 'top',
-            offset: [0, -10],
-            opacity: 0.9,
-            className: 'custom-tooltip'
-        });
-        
-        // Add click event to focus on node in graph
-        marker.on('click', function() {
-            // Update URL with focused node for sharing
-            if (window.updateUrlWithFocusedNode) {
-                window.updateUrlWithFocusedNode(nodeId);
-            }
-            
-            if (window.graphModule) {
-                window.graphModule.focusOnNode(nodeId);
-            }
-        });
-        
-        // Add hover effects
-        marker.on('mouseover', function(e) {
-            this.setStyle({
-                radius: 10,
-                weight: 3,
-                fillOpacity: 1
-            });
-        });
-        
-        marker.on('mouseout', function(e) {
-            this.setStyle({
-                radius: 8,
-                weight: 2,
-                fillOpacity: 0.8
-            });
-        });
-        
-        mapMarkers[nodeId] = marker;
+        if (map.hasLayer(mapMarkers[nodeId])) {
+            map.removeLayer(mapMarkers[nodeId]);
+        }
+        delete mapMarkers[nodeId];
     }
+    
+    // Re-render the node with current mode
+    renderNode(nodeData);
     
     // Check if any existing connections can now draw map lines
     redrawMapConnectionsForNode(nodeId);
@@ -668,6 +586,26 @@ function updateMapConnection(connectionData) {
 }
 
 /**
+ * Clear all map markers
+ */
+function clearMapMarkers() {
+    // Remove all markers from the map
+    for (const marker of Object.values(mapMarkers)) {
+        // Try removing from both markerLayer and map directly
+        if (window.markerLayer) {
+            window.markerLayer.removeLayer(marker);
+        }
+        // Also remove directly from map (for temperature markers)
+        if (map.hasLayer(marker)) {
+            map.removeLayer(marker);
+        }
+    }
+    
+    // Clear the markers object
+    mapMarkers = {};
+}
+
+/**
  * Clear all map connections
  */
 function clearMapConnections() {
@@ -733,116 +671,187 @@ function addPositionQualityLegend() {
 // Temperature map functionality
 let isTemperatureMapActive = false;
 
+/**
+ * Toggle between normal and temperature map modes
+ */
 function toggleTemperatureMap() {
-  isTemperatureMapActive = !isTemperatureMapActive;
-  const btn = document.querySelector('.temperature-map-btn');
-  
-  if (isTemperatureMapActive) {
-    showTemperatureMap();
-    btn.textContent = '🗺️';
-    btn.title = 'Show Normal Map';
-    btn.classList.add('active');
-  } else {
-    showAllNodesOnMap();
-    btn.textContent = '🌡️';
-    btn.title = 'Show Temperature Map';
-    btn.classList.remove('active');
-  }
+    isTemperatureMapActive = !isTemperatureMapActive;
+    const btn = document.querySelector('.temperature-map-btn');
+    
+    if (isTemperatureMapActive) {
+        btn.textContent = '🗺️';
+        btn.title = 'Show Normal Map';
+        btn.classList.add('active');
+    } else {
+        btn.textContent = '🌡️';
+        btn.title = 'Show Temperature Map';
+        btn.classList.remove('active');
+    }
+    
+    // Re-render all nodes with the new mode
+    renderAllNodes();
 }
 
-function showTemperatureMap() {
-  // Hide all connections
-  clearMapConnections();
-  
-  // Clear existing markers
-  const mapInstance = map;
-  for (const marker of Object.values(mapMarkers)) {
-    mapInstance.removeLayer(marker);
-  }
-  // Clear the markers object
-  Object.keys(mapMarkers).forEach(key => delete mapMarkers[key]);
-  
-  // Get nodes data from dashboard cache
-  const nodesData = window.getCachedNodesData ? window.getCachedNodesData() : {};
-  let tempNodeCount = 0;
-  
-  for (const nodeId in nodesData) {
-    const node = nodesData[nodeId];
-    // Check if node has valid position and temperature data
-    if (node.latitude && node.longitude && 
-        node.environment_metrics && typeof node.environment_metrics.temperature === 'number') {
-      
-      const temp = node.environment_metrics.temperature;
-      const color = getTemperatureColor(temp);
-      
-      // Create a custom div marker with colored background
-      const tempLabel = L.divIcon({
-        className: 'temperature-label',
-        html: `<div style="background-color: ${color}; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${temp.toFixed(1)}°C</div>`,
-        iconSize: [50, 20],
-        iconAnchor: [25, 10]
-      });
-      
-      const marker = L.marker([node.latitude, node.longitude], {
-        icon: tempLabel
-      }).addTo(mapInstance);
-      
-      // Add hover tooltip with full node info like normal mode
-      const tooltipContent = generateEnhancedTooltip(node, nodeId);
-      marker.bindTooltip(tooltipContent, {
-        direction: 'top',
-        offset: [0, -10]
-      });
-      
-      // Store marker for cleanup
-      mapMarkers[nodeId] = marker;
-      tempNodeCount++;
+/**
+ * Render all nodes based on current mode (normal or temperature)
+ */
+function renderAllNodes() {
+    // Clear existing markers completely
+    clearMapMarkers();
+    
+    // Clear connections in temperature mode
+    if (isTemperatureMapActive) {
+        clearMapConnections();
     }
-  }
-  
-  console.log(`Temperature map: showing ${tempNodeCount} nodes with temperature data`);
+    
+    // Get nodes data from dashboard cache
+    const nodesData = window.getCachedNodesData ? window.getCachedNodesData() : {};
+    
+    for (const nodeId in nodesData) {
+        const node = nodesData[nodeId];
+        renderNode(node);
+    }
+    
+    // Restore connections if in normal mode
+    if (!isTemperatureMapActive) {
+        restoreConnections();
+    }
 }
 
-function showAllNodesOnMap() {
-  // Clear temperature markers
-  const mapInstance = map;
-  for (const marker of Object.values(mapMarkers)) {
-    mapInstance.removeLayer(marker);
-  }
-  // Clear the markers object
-  Object.keys(mapMarkers).forEach(key => delete mapMarkers[key]);
-  
-  // Re-add all normal nodes
-  const nodesData = window.getCachedNodesData ? window.getCachedNodesData() : {};
-  for (const nodeId in nodesData) {
-    const node = nodesData[nodeId];
-    if (node.latitude && node.longitude) {
-      updateMapMarker(node);
+/**
+ * Render a single node based on current mode
+ */
+function renderNode(nodeData) {
+    if (!nodeData || !nodeData.node_id) return;
+    
+    const nodeId = nodeData.node_id;
+    const lat = nodeData.latitude;
+    const lon = nodeData.longitude;
+    
+    // Skip nodes without valid coordinates
+    if (!lat || !lon || lat == null || lon == null || 
+        lat === '' || lon === '' || isNaN(lat) || isNaN(lon)) {
+        return;
     }
-  }
-  
-  // Restore connections
-  const timeframeSelect = document.getElementById('timeframeSelect');
-  const distanceLimitSelect = document.getElementById('distanceLimitSelect');
-  const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
-  const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
-  
-  fetch(`/api/connections?hours=${selectedHours}`)
-    .then(response => response.json())
-    .then(data => {
-      // Use dashboard's filter function if available
-      const filteredConnections = window.filterConnectionsByDistance ? 
-        window.filterConnectionsByDistance(data, nodesData, selectedDistance) : data;
-      filteredConnections.forEach(connection => {
-        if (window.updateConnection) {
-          window.updateConnection(connection);
+    
+    let marker;
+    
+    if (isTemperatureMapActive) {
+        // Temperature mode: only show nodes with temperature data
+        if (!nodeData.environment_metrics || typeof nodeData.environment_metrics.temperature !== 'number') {
+            return; // Skip nodes without temperature data
         }
-      });
-      setTimeout(() => {
-        redrawAllMapConnections();
-      }, 200);
-    })
-    .catch(error => console.error('Error restoring connections:', error));
+        
+        const temp = nodeData.environment_metrics.temperature;
+        const color = getTemperatureColor(temp);
+        
+        const tempLabel = L.divIcon({
+            className: 'temperature-label',
+            html: `<div style="background-color: ${color}; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${temp.toFixed(1)}°C</div>`,
+            iconSize: [50, 20],
+            iconAnchor: [25, 10]
+        });
+        
+        marker = L.marker([lat, lon], { icon: tempLabel }).addTo(map);
+    } else {
+        // Normal mode: show all nodes with position quality colors
+        const positionQuality = nodeData.position_quality || 'unknown';
+        let markerColor = '#4fd1c7'; // Default teal
+        
+        switch (positionQuality) {
+            case 'confirmed':
+                markerColor = '#48bb78'; // Green for confirmed GPS positions
+                break;
+            case 'triangulated':
+                markerColor = '#ecc94b'; // Yellow for triangulated positions
+                break;
+            case 'estimated':
+                markerColor = '#e53e3e'; // Red for estimated positions
+                break;
+        }
+        
+        marker = L.circleMarker([lat, lon], {
+            radius: 8,
+            fillColor: markerColor,
+            color: '#ffffff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8,
+            pane: 'markerPane'
+        }).addTo(window.markerLayer);
+        
+        // Add popup for normal mode
+        const popupContent = generateMapPopupContent(nodeData, nodeId);
+        marker.bindPopup(popupContent);
+        
+        // Add click event for normal mode
+        marker.on('click', function() {
+            if (window.updateUrlWithFocusedNode) {
+                window.updateUrlWithFocusedNode(nodeId);
+            }
+            if (window.graphModule) {
+                window.graphModule.focusOnNode(nodeId);
+            }
+        });
+        
+        // Add hover effects for normal mode
+        marker.on('mouseover', function(e) {
+            this.setStyle({
+                radius: 10,
+                weight: 3,
+                fillOpacity: 1
+            });
+        });
+        
+        marker.on('mouseout', function(e) {
+            this.setStyle({
+                radius: 8,
+                weight: 2,
+                fillOpacity: 0.8
+            });
+        });
+    }
+    
+    // Add enhanced tooltip for both modes
+    const tooltipContent = generateEnhancedTooltip(nodeData, nodeId);
+    marker.bindTooltip(tooltipContent, {
+        direction: 'top',
+        offset: [0, -10],
+        opacity: 0.9,
+        className: 'custom-tooltip'
+    });
+    
+    // Store marker
+    mapMarkers[nodeId] = marker;
+}
+
+/**
+ * Restore connections for normal mode
+ */
+function restoreConnections() {
+    const timeframeSelect = document.getElementById('timeframeSelect');
+    const distanceLimitSelect = document.getElementById('distanceLimitSelect');
+    const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
+    const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
+    
+    fetch(`/api/connections?hours=${selectedHours}`)
+        .then(response => response.json())
+        .then(data => {
+            const nodesData = window.getCachedNodesData ? window.getCachedNodesData() : {};
+            const filteredConnections = window.filterConnectionsByDistance ? 
+                window.filterConnectionsByDistance(data, nodesData, selectedDistance) : data;
+            
+            filteredConnections.forEach(connection => {
+                if (window.updateConnection) {
+                    window.updateConnection(connection);
+                }
+            });
+            
+            setTimeout(() => {
+                redrawAllMapConnections();
+            }, 200);
+        })
+        .catch(error => console.error('Error restoring connections:', error));
 }
 
 function getTemperatureColor(temp) {
@@ -873,11 +882,13 @@ window.mapModule = {
     initialize: initializeMapView,
     showPing: showMapPing,
     updateMarker: updateMapMarker,
+    renderAllNodes: renderAllNodes,
     focusOnNode: focusOnNodeInMap,
     updateConnection: updateMapConnection,
     redrawConnectionsForNode: redrawMapConnectionsForNode,
     redrawAllConnections: redrawAllMapConnections,
     clearConnections: clearMapConnections,
+    clearMarkers: clearMapMarkers,
     autoFit: autoFitMap,
     getMarkers: () => mapMarkers,
     getMap: () => map,

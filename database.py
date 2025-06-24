@@ -243,15 +243,20 @@ class MeshtasticDB:
                 ))
                 conn.commit()
     
-    def get_nodes(self):
-        """Get all nodes"""
+    def get_nodes(self, hours=48):
+        """Get nodes filtered by timeframe (last seen within specified hours)
+        
+        Args:
+            hours: Timeframe in hours to look back (default: 48)
+        """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             nodes = []
             for row in conn.execute('''
                 SELECT * FROM nodes 
+                WHERE last_seen >= datetime('now', '-{} hours')
                 ORDER BY last_seen DESC
-            ''').fetchall():
+            '''.format(hours)).fetchall():
                 node = dict(row)
                 # Parse JSON fields
                 if node.get('environment_metrics'):
@@ -266,17 +271,22 @@ class MeshtasticDB:
                         node['power_metrics'] = None
                 nodes.append(node)
             return nodes
-    
-    def get_nodes_with_position(self):
-        """Get only nodes that have coordinates"""
+
+    def get_nodes_with_position(self, hours=48):
+        """Get only nodes that have coordinates
+        
+        Args:
+            hours: Timeframe in hours to look back (default: 48)
+        """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             nodes = []
             for row in conn.execute('''
                 SELECT * FROM nodes 
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                AND last_seen >= datetime('now', '-{} hours')
                 ORDER BY last_seen DESC
-            ''').fetchall():
+            '''.format(hours)).fetchall():
                 node = dict(row)
                 # Parse JSON fields
                 if node.get('environment_metrics'):
@@ -291,8 +301,8 @@ class MeshtasticDB:
                         node['power_metrics'] = None
                 nodes.append(node)
             return nodes
-    
-    def get_connections(self, from_node=None, to_node=None, nodes=None, hours=72):
+
+    def get_connections(self, from_node=None, to_node=None, nodes=None, hours=48):
         """Get direct RF connections between nodes based on actual radio reception
         
         A connection represents direct RF communication where:
@@ -304,7 +314,7 @@ class MeshtasticDB:
             from_node: Optional filter for specific transmitting node
             to_node: Optional filter for specific receiving node  
             nodes: Optional list of nodes to filter connections involving any of them
-            hours: Timeframe in hours to look back (default: 72)
+            hours: Timeframe in hours to look back (default: 48)
         """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row

@@ -37,7 +37,11 @@ async function fetchInitialNodesData() {
   
   try {
     console.log('Fetching initial nodes data from API...');
-    const response = await fetch('/api/nodes');
+    // Get timeframe from UI
+    const timeframeSelect = document.getElementById('timeframeSelect');
+    const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
+    
+    const response = await fetch(`/api/nodes?hours=${selectedHours}`);
     const nodesArray = await response.json();
     
     // Convert to object format and cache
@@ -47,7 +51,7 @@ async function fetchInitialNodesData() {
     }, {});
     
     isNodesDataLoaded = true;
-    console.log(`Loaded ${nodesArray.length} nodes into cache`);
+    console.log(`Loaded ${nodesArray.length} nodes into cache for ${selectedHours}h timeframe`);
     return cachedNodesData;
   } catch (error) {
     console.error('Error fetching initial nodes data:', error);
@@ -284,14 +288,30 @@ function initializeWebSocket() {
 function processNodesInChunks(nodesArray, chunkSize = 200, onComplete) {
   let index = 0;
   showLoadingOverlay('Loading nodes...', 'Please wait while the dashboard loads all nodes.');
+  
+  // Validate nodesArray
+  if (!Array.isArray(nodesArray)) {
+    console.error('processNodesInChunks: nodesArray is not an array:', nodesArray);
+    hideLoadingOverlay();
+    if (typeof onComplete === 'function') {
+      onComplete();
+    }
+    return;
+  }
+  
   function processChunk() {
     const end = Math.min(index + chunkSize, nodesArray.length);
     for (let i = index; i < end; i++) {
-      updateNode(nodesArray[i]);
+      const node = nodesArray[i];
+      if (node && typeof node === 'object' && node.node_id) {
+        updateNode(node);
+      } else {
+        console.warn('Skipping invalid node at index', i, ':', node);
+      }
     }
     index = end;
     if (index < nodesArray.length) {
-      setTimeout(processChunk, 200); // Yield to UI thread
+      setTimeout(processChunk, 0); // Yield to UI thread
     } else if (typeof onComplete === 'function') {
       hideLoadingOverlay();
       onComplete();
@@ -308,6 +328,11 @@ function loadInitialData() {
       const nodesArray = Object.values(nodesData);
       // Use chunked processing for large node sets
       processNodesInChunks(nodesArray, 200, () => {
+        // Render all nodes in the map based on current mode
+        if (window.mapModule) {
+          window.mapModule.renderAllNodes();
+        }
+        
         // Auto-fit map to show all markers after loading
         setTimeout(() => {
           if (window.mapModule) {
@@ -315,32 +340,32 @@ function loadInitialData() {
           }
         }, 200);
 
-        // Load connections after nodes are loaded and markers are created
-        const timeframeSelect = document.getElementById('timeframeSelect');
-        const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
-        fetch(`/api/connections?hours=${selectedHours}`)
-          .then(response => response.json())
-          .then(data => {
-            // Filter connections by distance using cached nodes data
-            // (No additional /api/nodes requests needed)
-            const distanceLimitSelect = document.getElementById('distanceLimitSelect');
-            const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
-            return filterConnectionsByDistance(data, cachedNodesData, selectedDistance);
-          })
-          .then(filteredConnections => {
-            filteredConnections.forEach(connection => updateConnection(connection));
-            // Force redraw all map connections after both nodes and connections are loaded
-            setTimeout(() => {
-              if (window.mapModule) {
-                window.mapModule.redrawAllConnections();
-              }
+        // Load connections after nodes are loaded (only for normal mode)
+        if (!window.mapModule || !window.mapModule.isTemperatureMapActive()) {
+          const timeframeSelect = document.getElementById('timeframeSelect');
+          const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
+          fetch(`/api/connections?hours=${selectedHours}`)
+            .then(response => response.json())
+            .then(data => {
+              // Filter connections by distance using cached nodes data
+              const distanceLimitSelect = document.getElementById('distanceLimitSelect');
+              const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
+              return filterConnectionsByDistance(data, cachedNodesData, selectedDistance);
+            })
+            .then(filteredConnections => {
+              filteredConnections.forEach(connection => updateConnection(connection));
+              // Force redraw all map connections after both nodes and connections are loaded
+              setTimeout(() => {
+                if (window.mapModule) {
+                  window.mapModule.redrawAllConnections();
+                }
 
-              // Focus on node from URL parameter after all data is loaded
-              // The function now includes retry logic to wait for views to be ready
-              focusNodeFromUrl();
-            }, 500); // Increased delay to give views more time to initialize
-          })
-          .catch(error => console.error('Error loading initial data:', error));
+                // Focus on node from URL parameter after all data is loaded
+                focusNodeFromUrl();
+              }, 500);
+            })
+            .catch(error => console.error('Error loading connections:', error));
+        }
       });
     })
     .catch(error => console.error('Error loading initial data:', error));
@@ -415,7 +440,7 @@ function updateNode(nodeData) {
 
   // Update map marker only if node has position AND not in temperature map mode
   if (hasPosition && window.mapModule && 
-      (!window.mapModule.isTemperatureMapActive || !window.mapModule.isTemperatureMapActive())) {
+      !window.mapModule.isTemperatureMapActive()) {
     window.mapModule.updateMarker(nodeData);
   }
 
@@ -433,7 +458,7 @@ function updateConnection(connectionData) {
 
   // Update map connection only if not in temperature map mode
   if (window.mapModule && 
-      (!window.mapModule.isTemperatureMapActive || !window.mapModule.isTemperatureMapActive())) {
+      !window.mapModule.isTemperatureMapActive()) {
     window.mapModule.updateConnection(connectionData);
   }
 }
@@ -856,8 +881,23 @@ function updateTimeframe() {
   const distanceLimitSelect = document.getElementById('distanceLimitSelect');
   const selectedDistance = parseInt(distanceLimitSelect.value);
 
-  // Reload connections with new timeframe and current distance limit
-  loadConnections(selectedHours, selectedDistance);
+  // Clear existing nodes and connections from both views
+  if (window.mapModule) {
+    window.mapModule.clearMarkers();
+    window.mapModule.clearConnections();
+  }
+  
+  if (window.graphModule && window.graphModule.isAvailable()) {
+    window.graphModule.clearNodes();
+    window.graphModule.clearConnections();
+  }
+
+  // Clear cached nodes data to force refresh with new timeframe
+  isNodesDataLoaded = false;
+  cachedNodesData = {};
+
+  // Reload all data with new timeframe - this will automatically call renderAllNodes
+  loadInitialData();
 
   // Update stats with new timeframe
   if (window.statsModule) {
