@@ -78,41 +78,42 @@ const LazyLoadingManager = {
     
     // Filter by temperature mode if active
     if (window.mapModule && window.mapModule.isTemperatureMapActive()) {
-      console.log('Temperature mode active - filtering nodes');
       filteredNodes = allNodes.filter(node => {
         const hasTemp = node.environment_metrics && 
                        typeof node.environment_metrics.temperature === 'number' && 
                        !isNaN(node.environment_metrics.temperature);
-        if (hasTemp) {
-          console.log(`Node ${node.node_id} has temperature: ${node.environment_metrics.temperature}`);
-        }
         return hasTemp;
       });
-      console.log(`Filtered to ${filteredNodes.length} nodes with temperature data`);
-    } else {
-      console.log('Normal mode - no temperature filtering');
     }
-    
-    // Note: Viewport filtering is handled by the lazy loading system during rendering
-    // We don't filter by viewport bounds here to keep map and graph consistent
     
     return filteredNodes;
   },
   
   // Filter nodes for graph view with performance considerations
   filterNodesForGraph(allNodes) {
-    // If we have too many nodes, prioritize by criteria
+    // If we have too many nodes, only show nodes with connections
     if (allNodes.length > this.config.maxGraphNodes) {
-      return allNodes
-        .filter(node => {
-          // Prioritize nodes with recent activity or connections
-          const lastSeen = node.last_seen ? new Date(node.last_seen) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < (24 * 60 * 60 * 1000); // 24 hours
-          return isRecent || node.latitude || node.longitude;
-        })
-        .slice(0, this.config.maxGraphNodes);
+      // Get all nodes that have connections
+      const nodesWithConnections = new Set();
+      
+      // Check if we have cached connection data to identify connected nodes
+      if (window.graphModule && window.graphModule.getAllEdges) {
+        const edges = window.graphModule.getAllEdges();
+        edges.forEach(edge => {
+          nodesWithConnections.add(edge.from);
+          nodesWithConnections.add(edge.to);
+        });
+      }
+      
+      // Filter to only nodes with connections, then limit to max
+      const connectedNodes = allNodes.filter(node => 
+        nodesWithConnections.has(node.node_id)
+      ).slice(0, this.config.maxGraphNodes);
+      
+      return connectedNodes;
     }
     
+    // Show all nodes if under the limit
     return allNodes;
   },
   
