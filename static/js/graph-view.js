@@ -299,44 +299,57 @@ function updateNetworkNode(nodeData) {
     let nodeColor;
     if (hasPosition) {
         const positionQuality = nodeData.position_quality || 'unknown';
-        switch (positionQuality) {
-            case 'confirmed':
-                // Green for confirmed GPS positions
-                nodeColor = {
-                    border: '#38a169',
-                    background: '#48bb78',
-                    highlight: {
-                        border: '#2f855a',
-                        background: '#68d391'
-                    }
-                };
-                break;
-            case 'triangulated':
-                // Yellow for triangulated positions (3+ points)
-                nodeColor = {
-                    border: '#d69e2e',
-                    background: '#ecc94b',
-                    highlight: {
-                        border: '#b7791f',
-                        background: '#f6e05e'
-                    }
-                };
-                break;
-            case 'estimated':
-                // Red for estimated positions (2 points)
-                nodeColor = {
-                    border: '#c53030',
-                    background: '#e53e3e',
-                    highlight: {
-                        border: '#9b2c2c',
-                        background: '#fc8181'
-                    }
-                };
-                break;
-            default:
-                // Default color for unknown quality (shouldn't appear on map)
-                nodeColor = undefined;
+        if (positionQuality === 'confirmed') {
+            // Green for confirmed GPS positions
+            nodeColor = {
+                border: '#38a169',
+                background: '#48bb78',
+                highlight: {
+                    border: '#2f855a',
+                    background: '#68d391'
+                }
+            };
+        } else if (positionQuality === 'triangulated') {
+            // Yellow for triangulated positions (3+ points)
+            nodeColor = {
+                border: '#d69e2e',
+                background: '#ecc94b',
+                highlight: {
+                    border: '#b7791f',
+                    background: '#f6e05e'
+                }
+            };
+        } else if (positionQuality === 'estimated') {
+            // Red for estimated positions (2 points)
+            nodeColor = {
+                border: '#c53030',
+                background: '#e53e3e',
+                highlight: {
+                    border: '#9b2c2c',
+                    background: '#fc8181'
+                }
+            };
+        } else {
+            // Blue for nodes with position but unknown quality (most nodes from database)
+            nodeColor = {
+                border: '#3182ce',
+                background: '#4299e1',
+                highlight: {
+                    border: '#2c5282',
+                    background: '#63b3ed'
+                }
+            };
         }
+    } else {
+        // Gray color for nodes without position data
+        nodeColor = {
+            border: '#a0aec0',
+            background: '#718096',
+            highlight: {
+                border: '#4a5568',
+                background: '#a0aec0'
+            }
+        };
     }
     
     // Helper function to decode Unicode escape sequences
@@ -358,13 +371,9 @@ function updateNetworkNode(nodeData) {
     const networkNode = {
         id: String(nodeId), // Ensure it's a string
         label: String(nodeId), // Use nodeId instead of shortName, ensure string
+        color: nodeColor, // Always assign color (now always defined)
         nodeData: nodeData  // Store the full node data for tooltip access
     };
-    
-    // Only set color if it's defined and valid
-    if (nodeColor && typeof nodeColor === 'object') {
-        networkNode.color = nodeColor;
-    }
     
     try {
         // Check if node already exists before updating
@@ -387,6 +396,24 @@ function updateNetworkNode(nodeData) {
             }
         } catch (recoveryError) {
             console.error('Failed to recover from node update error:', recoveryError);
+        }
+    }
+}
+
+/**
+ * Remove a specific node from the network graph
+ * @param {string} nodeId - The ID of the node to remove
+ */
+function removeNetworkNode(nodeId) {
+    if (typeof vis !== 'undefined' && nodes) {
+        try {
+            // Check if node exists before trying to remove
+            const existingNode = nodes.get(nodeId);
+            if (existingNode) {
+                nodes.remove(nodeId);
+            }
+        } catch (error) {
+            console.error('Error removing network node:', error);
         }
     }
 }
@@ -822,6 +849,7 @@ function getRoleName(role) {
 window.graphModule = {
     initialize: initializeGraphView,
     updateNode: updateNetworkNode,
+    removeNode: removeNetworkNode,
     showPing: showGraphPing,
     focusOnNode: focusOnNodeInGraph,
     ensureNodeExists: ensureNodeExists,

@@ -13,6 +13,318 @@ let roles = {};
 let cachedNodesData = {};
 let isNodesDataLoaded = false;
 
+// Centralized lazy loading system
+const LazyLoadingManager = {
+  // Configuration
+  config: {
+    maxGraphNodes: 1000,        // Maximum nodes to show in graph at once
+    mapChunkSize: 50,          // Nodes to render per map chunk
+    graphChunkSize: 100,       // Nodes to render per graph chunk
+    renderDelay: 16,           // Delay between chunks (60fps)
+  },
+  
+  // State
+  state: {
+    currentMapBounds: null,
+    currentGraphNodes: new Set(),
+    currentMapNodes: new Set(),
+    renderingQueue: [],
+    isRendering: false,
+    activeView: 'both', // 'map', 'graph', or 'both'
+  },
+  
+  // Initialize the lazy loading manager
+  initialize() {
+    console.log('Initializing centralized lazy loading manager');
+    this.state.currentGraphNodes.clear();
+    this.state.currentMapNodes.clear();
+    this.state.renderingQueue = [];
+    this.state.isRendering = false;
+    
+    // Set up map event listeners for viewport changes
+    if (window.mapModule && window.mapModule.getMap) {
+      const map = window.mapModule.getMap();
+      if (map) {
+        map.on('moveend', () => this.onMapViewportChange());
+        map.on('zoomend', () => this.onMapViewportChange());
+      }
+    }
+  },
+  
+  // Determine which nodes should be visible
+  determineVisibleNodes() {
+    const allNodes = Object.values(cachedNodesData);
+    const visibleNodes = {
+      map: [],
+      graph: []
+    };
+    
+    // For map: filter by viewport bounds and temperature mode
+    if (this.state.activeView === 'map' || this.state.activeView === 'both') {
+      visibleNodes.map = this.filterNodesForMap(allNodes);
+    }
+    
+    // For graph: apply performance limits and smart filtering
+    if (this.state.activeView === 'graph' || this.state.activeView === 'both') {
+      visibleNodes.graph = this.filterNodesForGraph(allNodes);
+    }
+    
+    return visibleNodes;
+  },
+  
+  // Filter nodes for map view
+  filterNodesForMap(allNodes) {
+    let filteredNodes = allNodes;
+    
+    // Filter by temperature mode if active
+    if (window.mapModule && window.mapModule.isTemperatureMapActive()) {
+      console.log('Temperature mode active - filtering nodes');
+      filteredNodes = allNodes.filter(node => {
+        const hasTemp = node.environment_metrics && 
+                       typeof node.environment_metrics.temperature === 'number' && 
+                       !isNaN(node.environment_metrics.temperature);
+        if (hasTemp) {
+          console.log(`Node ${node.node_id} has temperature: ${node.environment_metrics.temperature}`);
+        }
+        return hasTemp;
+      });
+      console.log(`Filtered to ${filteredNodes.length} nodes with temperature data`);
+    } else {
+      console.log('Normal mode - no temperature filtering');
+    }
+    
+    // Filter by viewport bounds if available
+    if (this.state.currentMapBounds) {
+      filteredNodes = filteredNodes.filter(node => {
+        if (!node.latitude || !node.longitude) return false;
+        const lat = parseFloat(node.latitude);
+        const lng = parseFloat(node.longitude);
+        if (isNaN(lat) || isNaN(lng)) return false;
+        
+        const bounds = this.state.currentMapBounds;
+        return lat >= bounds.south && lat <= bounds.north && 
+               lng >= bounds.west && lng <= bounds.east;
+      });
+    }
+    
+    return filteredNodes;
+  },
+  
+  // Filter nodes for graph view with performance considerations
+  filterNodesForGraph(allNodes) {
+    // If we have too many nodes, prioritize by criteria
+    if (allNodes.length > this.config.maxGraphNodes) {
+      return allNodes
+        .filter(node => {
+          // Prioritize nodes with recent activity or connections
+          const lastSeen = node.last_seen ? new Date(node.last_seen) : null;
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < (24 * 60 * 60 * 1000); // 24 hours
+          return isRecent || node.latitude || node.longitude;
+        })
+        .slice(0, this.config.maxGraphNodes);
+    }
+    
+    return allNodes;
+  },
+  
+  // Update map viewport bounds
+  updateMapBounds(bounds) {
+    this.state.currentMapBounds = bounds;
+    this.scheduleRender();
+  },
+  
+  // Handle map viewport changes
+  onMapViewportChange() {
+    if (window.mapModule && window.mapModule.getMap) {
+      const map = window.mapModule.getMap();
+      if (map) {
+        const bounds = map.getBounds();
+        this.updateMapBounds({
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          west: bounds.getWest()
+        });
+      }
+    }
+  },
+  
+  // Schedule a render update
+  scheduleRender() {
+    if (this.state.isRendering) return;
+    
+    requestAnimationFrame(() => {
+      this.renderVisibleNodes();
+    });
+  },
+  
+  // Main render function
+  renderVisibleNodes() {
+    if (this.state.isRendering) return;
+    this.state.isRendering = true;
+    
+    const visibleNodes = this.determineVisibleNodes();
+    
+    // Queue rendering tasks
+    this.state.renderingQueue = [];
+    
+    // Queue map rendering
+    if (visibleNodes.map.length > 0) {
+      this.queueMapRendering(visibleNodes.map);
+    }
+    
+    // Queue graph rendering
+    if (visibleNodes.graph.length > 0) {
+      this.queueGraphRendering(visibleNodes.graph);
+    }
+    
+    // Start processing the queue
+    this.processRenderingQueue();
+  },
+  
+  // Queue map node rendering
+  queueMapRendering(nodes) {
+    // Remove nodes that are no longer visible
+    const currentIds = new Set(nodes.map(n => n.node_id));
+    const toRemove = [...this.state.currentMapNodes].filter(id => !currentIds.has(id));
+    
+    if (toRemove.length > 0) {
+      this.state.renderingQueue.push({
+        type: 'map-remove',
+        nodes: toRemove
+      });
+    }
+    
+    // Add new nodes in chunks
+    const toAdd = nodes.filter(n => !this.state.currentMapNodes.has(n.node_id));
+    for (let i = 0; i < toAdd.length; i += this.config.mapChunkSize) {
+      const chunk = toAdd.slice(i, i + this.config.mapChunkSize);
+      this.state.renderingQueue.push({
+        type: 'map-add',
+        nodes: chunk
+      });
+    }
+  },
+  
+  // Queue graph node rendering
+  queueGraphRendering(nodes) {
+    // Remove nodes that are no longer visible
+    const currentIds = new Set(nodes.map(n => n.node_id));
+    const toRemove = [...this.state.currentGraphNodes].filter(id => !currentIds.has(id));
+    
+    if (toRemove.length > 0) {
+      this.state.renderingQueue.push({
+        type: 'graph-remove',
+        nodes: toRemove
+      });
+    }
+    
+    // Add new nodes in chunks
+    const toAdd = nodes.filter(n => !this.state.currentGraphNodes.has(n.node_id));
+    for (let i = 0; i < toAdd.length; i += this.config.graphChunkSize) {
+      const chunk = toAdd.slice(i, i + this.config.graphChunkSize);
+      this.state.renderingQueue.push({
+        type: 'graph-add',
+        nodes: chunk
+      });
+    }
+  },
+  
+  // Process the rendering queue
+  processRenderingQueue() {
+    if (this.state.renderingQueue.length === 0) {
+      this.state.isRendering = false;
+      return;
+    }
+    
+    const task = this.state.renderingQueue.shift();
+    
+    try {
+      switch (task.type) {
+        case 'map-add':
+          if (window.mapModule) {
+            task.nodes.forEach(node => {
+              window.mapModule.renderNode(node);
+              this.state.currentMapNodes.add(node.node_id);
+            });
+          }
+          break;
+          
+        case 'map-remove':
+          if (window.mapModule) {
+            task.nodes.forEach(nodeId => {
+              window.mapModule.removeNode(nodeId);
+              this.state.currentMapNodes.delete(nodeId);
+            });
+          }
+          break;
+          
+        case 'graph-add':
+          if (window.graphModule && window.graphModule.isAvailable()) {
+            task.nodes.forEach(node => {
+              window.graphModule.updateNode(node);
+              this.state.currentGraphNodes.add(node.node_id);
+            });
+          }
+          break;
+          
+        case 'graph-remove':
+          if (window.graphModule && window.graphModule.isAvailable()) {
+            task.nodes.forEach(nodeId => {
+              window.graphModule.removeNode(nodeId);
+              this.state.currentGraphNodes.delete(nodeId);
+            });
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('Error processing render task:', error);
+    }
+    
+    // Continue processing after a delay
+    setTimeout(() => {
+      this.processRenderingQueue();
+    }, this.config.renderDelay);
+  },
+  
+  // Clear all rendered nodes
+  clearAll() {
+    this.state.currentGraphNodes.clear();
+    this.state.currentMapNodes.clear();
+    this.state.renderingQueue = [];
+    this.state.isRendering = false;
+    
+    if (window.mapModule) {
+      window.mapModule.clearMarkers();
+    }
+    
+    if (window.graphModule && window.graphModule.isAvailable()) {
+      window.graphModule.clearNodes();
+    }
+  },
+  
+  // Force refresh all nodes
+  refresh() {
+    this.clearAll();
+    setTimeout(() => {
+      this.scheduleRender();
+    }, 100);
+  },
+
+  // Force a complete refresh (clear all state and re-render)
+  forceRefresh() {
+    console.log('LazyLoadingManager: Force refresh triggered');
+    this.state.currentGraphNodes.clear();
+    this.state.currentMapNodes.clear();
+    this.state.renderingQueue = [];
+    this.state.isRendering = false;
+    
+    // Don't clear the actual markers here as that should be done by the views
+    // Just clear our tracking state and schedule a fresh render
+    this.scheduleRender();
+  },
+};
+
 /**
  * Get nodes data from cache (should always be available after initial load)
  * @returns {Object} Nodes data object
@@ -152,6 +464,9 @@ window.getFocusedNodeFromUrl = getFocusedNodeFromUrl;
 window.focusNodeFromUrl = focusNodeFromUrl;
 window.showLoadingOverlay = showLoadingOverlay;
 window.hideLoadingOverlay = hideLoadingOverlay;
+
+// Make LazyLoadingManager globally accessible
+window.LazyLoadingManager = LazyLoadingManager;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function () {
@@ -324,49 +639,40 @@ function loadInitialData() {
   // Fetch initial nodes data (this should be the ONLY /api/nodes call ever)
   fetchInitialNodesData()
     .then(nodesData => {
-      // Convert back to array format for processing
-      const nodesArray = Object.values(nodesData);
-      // Use chunked processing for large node sets
-      processNodesInChunks(nodesArray, 200, () => {
-        // Render all nodes in the map based on current mode
-        if (window.mapModule) {
-          window.mapModule.renderAllNodes();
-        }
-        
-        // Auto-fit map to show all markers after loading
-        setTimeout(() => {
-          if (window.mapModule) {
-            window.mapModule.autoFit();
-          }
-        }, 200);
+      console.log(`Loaded ${Object.keys(nodesData).length} nodes - initializing centralized lazy loading`);
+      
+      // Initialize the centralized lazy loading manager
+      LazyLoadingManager.initialize();
+      
+      // Start rendering visible nodes through the centralized system
+      LazyLoadingManager.scheduleRender();
 
-        // Load connections after nodes are loaded (only for normal mode)
-        if (!window.mapModule || !window.mapModule.isTemperatureMapActive()) {
-          const timeframeSelect = document.getElementById('timeframeSelect');
-          const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
-          fetch(`/api/connections?hours=${selectedHours}`)
-            .then(response => response.json())
-            .then(data => {
-              // Filter connections by distance using cached nodes data
-              const distanceLimitSelect = document.getElementById('distanceLimitSelect');
-              const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
-              return filterConnectionsByDistance(data, cachedNodesData, selectedDistance);
-            })
-            .then(filteredConnections => {
-              filteredConnections.forEach(connection => updateConnection(connection));
-              // Force redraw all map connections after both nodes and connections are loaded
-              setTimeout(() => {
-                if (window.mapModule) {
-                  window.mapModule.redrawAllConnections();
-                }
+      // Load connections (only for normal mode)
+      if (!window.mapModule || !window.mapModule.isTemperatureMapActive()) {
+        const timeframeSelect = document.getElementById('timeframeSelect');
+        const selectedHours = timeframeSelect ? timeframeSelect.value : '48';
+        fetch(`/api/connections?hours=${selectedHours}`)
+          .then(response => response.json())
+          .then(data => {
+            // Filter connections by distance using cached nodes data
+            const distanceLimitSelect = document.getElementById('distanceLimitSelect');
+            const selectedDistance = distanceLimitSelect ? parseInt(distanceLimitSelect.value) : 250;
+            return filterConnectionsByDistance(data, cachedNodesData, selectedDistance);
+          })
+          .then(filteredConnections => {
+            filteredConnections.forEach(connection => updateConnection(connection));
+            // Force redraw all map connections after connections are loaded
+            setTimeout(() => {
+              if (window.mapModule) {
+                window.mapModule.redrawAllConnections();
+              }
 
-                // Focus on node from URL parameter after all data is loaded
-                focusNodeFromUrl();
-              }, 500);
-            })
-            .catch(error => console.error('Error loading connections:', error));
-        }
-      });
+              // Focus on node from URL parameter after all data is loaded
+              focusNodeFromUrl();
+            }, 200);
+          })
+          .catch(error => console.error('Error loading connections:', error));
+      }
     })
     .catch(error => console.error('Error loading initial data:', error));
 
@@ -429,20 +735,12 @@ function showNodeUpdatePing(nodeId) {
 function updateNode(nodeData) {
   const nodeId = nodeData.node_id;
 
-  const hasPosition = nodeData.latitude != null && nodeData.longitude != null &&
-    nodeData.latitude !== '' && nodeData.longitude !== '' &&
-    !isNaN(nodeData.latitude) && !isNaN(nodeData.longitude);
+  // Update the node in cache first
+  updateNodeInCache(nodeId, nodeData);
 
-  // Always update network graph node (show all nodes in graph)
-  if (window.graphModule && window.graphModule.isAvailable()) {
-    window.graphModule.updateNode(nodeData);
-  }
-
-  // Update map marker only if node has position AND not in temperature map mode
-  if (hasPosition && window.mapModule && 
-      !window.mapModule.isTemperatureMapActive()) {
-    window.mapModule.updateMarker(nodeData);
-  }
+  // Trigger a re-evaluation through the centralized lazy loading system
+  // This will determine if the node should be visible in current views and render accordingly
+  LazyLoadingManager.scheduleRender();
 
   // Show visual ping effect for the updated node (always call, it handles map vs graph internally)
   showNodeUpdatePing(nodeId);
@@ -881,22 +1179,18 @@ function updateTimeframe() {
   const distanceLimitSelect = document.getElementById('distanceLimitSelect');
   const selectedDistance = parseInt(distanceLimitSelect.value);
 
-  // Clear existing nodes and connections from both views
-  if (window.mapModule) {
-    window.mapModule.clearMarkers();
-    window.mapModule.clearConnections();
-  }
+  // Clear all nodes and connections using centralized system
+  LazyLoadingManager.clearAll();
   
-  if (window.graphModule && window.graphModule.isAvailable()) {
-    window.graphModule.clearNodes();
-    window.graphModule.clearConnections();
+  if (window.mapModule) {
+    window.mapModule.clearConnections();
   }
 
   // Clear cached nodes data to force refresh with new timeframe
   isNodesDataLoaded = false;
   cachedNodesData = {};
 
-  // Reload all data with new timeframe - this will automatically call renderAllNodes
+  // Reload all data with new timeframe - this will automatically use centralized lazy loading
   loadInitialData();
 
   // Update stats with new timeframe

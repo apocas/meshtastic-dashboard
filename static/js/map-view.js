@@ -181,20 +181,14 @@ function showMapPing(nodeId) {
  * Update or create a map marker for a node
  */
 function updateMapMarker(nodeData) {
-    // Remove existing marker if it exists
     const nodeId = nodeData.node_id;
+    
+    // Remove existing marker if it exists
     if (mapMarkers[nodeId]) {
-        // Remove from both possible layers/map
-        if (window.markerLayer) {
-            window.markerLayer.removeLayer(mapMarkers[nodeId]);
-        }
-        if (map.hasLayer(mapMarkers[nodeId])) {
-            map.removeLayer(mapMarkers[nodeId]);
-        }
-        delete mapMarkers[nodeId];
+        removeMapNode(nodeId);
     }
     
-    // Re-render the node with current mode
+    // Always render the node (centralized lazy loading will control what gets here)
     renderNode(nodeData);
     
     // Check if any existing connections can now draw map lines
@@ -387,6 +381,32 @@ function generateEnhancedTooltip(nodeData, nodeId) {
             </div>` : ''}
         </div>
     `;
+}
+
+/**
+ * Render a single node (used by centralized lazy loading)
+ * @param {Object} nodeData - Node data to render
+ */
+function renderSingleNode(nodeData) {
+    renderNode(nodeData);
+}
+
+/**
+ * Remove a specific node from the map (used by centralized lazy loading)
+ * @param {string} nodeId - The ID of the node to remove
+ */
+function removeMapNode(nodeId) {
+    if (mapMarkers[nodeId]) {
+        // Try removing from both markerLayer and map directly
+        if (window.markerLayer) {
+            window.markerLayer.removeLayer(mapMarkers[nodeId]);
+        }
+        // Also remove directly from map (for temperature markers)
+        if (map.hasLayer(mapMarkers[nodeId])) {
+            map.removeLayer(mapMarkers[nodeId]);
+        }
+        delete mapMarkers[nodeId];
+    }
 }
 
 /**
@@ -676,6 +696,8 @@ let isTemperatureMapActive = false;
  */
 function toggleTemperatureMap() {
     isTemperatureMapActive = !isTemperatureMapActive;
+    console.log('Temperature map toggled:', isTemperatureMapActive);
+    
     const btn = document.querySelector('.temperature-map-btn');
     
     if (isTemperatureMapActive) {
@@ -688,12 +710,23 @@ function toggleTemperatureMap() {
         btn.classList.remove('active');
     }
     
-    // Re-render all nodes with the new mode
-    renderAllNodes();
+    // Clear all existing markers first so they get re-rendered in the new mode
+    clearMapMarkers();
+    
+    // Force a complete refresh through the centralized system
+    if (window.LazyLoadingManager) {
+        console.log('Calling LazyLoadingManager.forceRefresh()');
+        window.LazyLoadingManager.forceRefresh();
+    } else {
+        console.log('LazyLoadingManager not available, using fallback');
+        // Fallback if centralized system is not available
+        renderAllNodes();
+    }
 }
 
 /**
  * Render all nodes based on current mode (normal or temperature)
+ * Only used when lazy loading is disabled
  */
 function renderAllNodes() {
     // Clear existing markers completely
@@ -704,13 +737,18 @@ function renderAllNodes() {
         clearMapConnections();
     }
     
-    // Get nodes data from dashboard cache
+    // Render all nodes (legacy mode - now primarily used for fallback)
     const nodesData = window.getCachedNodesData ? window.getCachedNodesData() : {};
+    let renderCount = 0;
     
     for (const nodeId in nodesData) {
         const node = nodesData[nodeId];
-        renderNode(node);
+        if (renderNode(node)) {
+            renderCount++;
+        }
     }
+    
+    console.log(`Rendered ${renderCount} nodes in non-lazy mode`);
     
     // Restore connections if in normal mode
     if (!isTemperatureMapActive) {
@@ -720,9 +758,10 @@ function renderAllNodes() {
 
 /**
  * Render a single node based on current mode
+ * Returns true if node was rendered, false if skipped
  */
 function renderNode(nodeData) {
-    if (!nodeData || !nodeData.node_id) return;
+    if (!nodeData || !nodeData.node_id) return false;
     
     const nodeId = nodeData.node_id;
     const lat = nodeData.latitude;
@@ -731,19 +770,25 @@ function renderNode(nodeData) {
     // Skip nodes without valid coordinates
     if (!lat || !lon || lat == null || lon == null || 
         lat === '' || lon === '' || isNaN(lat) || isNaN(lon)) {
-        return;
+        return false;
     }
+
+    console.log(`Rendering node ${nodeId}, temperature mode: ${isTemperatureMapActive}`);
     
     let marker;
     
     if (isTemperatureMapActive) {
+        console.log(`Temperature mode - checking node ${nodeId} for temperature data`);
         // Temperature mode: only show nodes with temperature data
         if (!nodeData.environment_metrics || typeof nodeData.environment_metrics.temperature !== 'number') {
-            return; // Skip nodes without temperature data
+            console.log(`Node ${nodeId} skipped - no temperature data`);
+            return false; // Skip nodes without temperature data
         }
         
         const temp = nodeData.environment_metrics.temperature;
         const color = getTemperatureColor(temp);
+        
+        console.log(`Rendering temperature node ${nodeId}: ${temp}°C with color ${color}`);
         
         const tempLabel = L.divIcon({
             className: 'temperature-label',
@@ -754,6 +799,7 @@ function renderNode(nodeData) {
         
         marker = L.marker([lat, lon], { icon: tempLabel }).addTo(map);
     } else {
+        console.log(`Rendering normal node ${nodeId}`);
         // Normal mode: show all nodes with position quality colors
         const positionQuality = nodeData.position_quality || 'unknown';
         let markerColor = '#4fd1c7'; // Default teal
@@ -823,6 +869,7 @@ function renderNode(nodeData) {
     
     // Store marker
     mapMarkers[nodeId] = marker;
+    return true;
 }
 
 /**
@@ -882,6 +929,8 @@ window.mapModule = {
     initialize: initializeMapView,
     showPing: showMapPing,
     updateMarker: updateMapMarker,
+    renderNode: renderSingleNode,
+    removeNode: removeMapNode,
     renderAllNodes: renderAllNodes,
     focusOnNode: focusOnNodeInMap,
     updateConnection: updateMapConnection,
