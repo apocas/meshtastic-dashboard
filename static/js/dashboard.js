@@ -93,19 +93,8 @@ const LazyLoadingManager = {
       console.log('Normal mode - no temperature filtering');
     }
     
-    // Filter by viewport bounds if available
-    if (this.state.currentMapBounds) {
-      filteredNodes = filteredNodes.filter(node => {
-        if (!node.latitude || !node.longitude) return false;
-        const lat = parseFloat(node.latitude);
-        const lng = parseFloat(node.longitude);
-        if (isNaN(lat) || isNaN(lng)) return false;
-        
-        const bounds = this.state.currentMapBounds;
-        return lat >= bounds.south && lat <= bounds.north && 
-               lng >= bounds.west && lng <= bounds.east;
-      });
-    }
+    // Note: Viewport filtering is handled by the lazy loading system during rendering
+    // We don't filter by viewport bounds here to keep map and graph consistent
     
     return filteredNodes;
   },

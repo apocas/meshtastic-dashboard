@@ -196,72 +196,6 @@ function updateMapMarker(nodeData) {
 }
 
 /**
- * Generate popup content for map markers
- */
-function generateMapPopupContent(nodeData, nodeId) {
-    const lat = nodeData.latitude;
-    const lon = nodeData.longitude;
-    const positionQuality = nodeData.position_quality || 'unknown';
-    
-    return `
-        <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
-            <div style="font-weight: bold; font-size: 14px; color: #2d3748; margin-bottom: 8px;">
-                ${nodeData.long_name || nodeData.short_name || 'Unknown Node'}
-            </div>
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>ID:</strong> !${nodeId}
-            </div>
-            ${nodeData.short_name && nodeData.long_name !== nodeData.short_name ? `
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>Short Name:</strong> ${nodeData.short_name}
-            </div>` : ''}
-            ${nodeData.hardware_model ? `
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>Hardware:</strong> ${nodeData.hardware_model}
-            </div>` : ''}
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>Position:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}
-            </div>
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>Position Quality:</strong> 
-                <span style="color: ${(positionQuality === 'confirmed' ? '#38a169' : 
-                    positionQuality === 'triangulated' ? '#d69e2e' : 
-                    positionQuality === 'estimated' ? '#c53030' : '#718096')};">
-                    ${positionQuality === 'confirmed' ? 'GPS Confirmed' : 
-                      positionQuality === 'triangulated' ? 'Triangulated (3+ points)' : 
-                      positionQuality === 'estimated' ? 'Estimated (2 points)' : 
-                      'Unknown'}
-                </span>
-            </div>
-            ${nodeData.altitude ? `
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>Altitude:</strong> ${nodeData.altitude}m
-            </div>` : ''}
-            ${nodeData.battery_level ? `
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>Battery:</strong> ${nodeData.battery_level}%
-            </div>` : ''}
-            ${nodeData.voltage ? `
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>Voltage:</strong> ${nodeData.voltage}V
-            </div>` : ''}
-            ${nodeData.snr ? `
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>SNR:</strong> ${nodeData.snr} dB
-            </div>` : ''}
-            ${nodeData.rssi ? `
-            <div style="font-size: 12px; color: #4a5568; margin-bottom: 4px;">
-                <strong>RSSI:</strong> ${nodeData.rssi} dBm
-            </div>` : ''}
-            ${nodeData.last_seen ? `
-            <div style="font-size: 12px; color: #4a5568; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0;">
-                <strong>Last seen:</strong> ${new Date(nodeData.last_seen).toLocaleString()}
-            </div>` : ''}
-        </div>
-    `;
-}
-
-/**
  * Generate enhanced tooltip content for map markers
  */
 function generateEnhancedTooltip(nodeData, nodeId) {
@@ -825,10 +759,6 @@ function renderNode(nodeData) {
             fillOpacity: 0.8,
             pane: 'markerPane'
         }).addTo(window.markerLayer);
-        
-        // Add popup for normal mode
-        const popupContent = generateMapPopupContent(nodeData, nodeId);
-        marker.bindPopup(popupContent);
         
         // Add click event for normal mode
         marker.on('click', function() {
