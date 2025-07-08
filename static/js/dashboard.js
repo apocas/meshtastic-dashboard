@@ -1552,3 +1552,82 @@ window.toggleTemperatureMap = function() {
     window.mapModule.toggleTemperatureMap();
   }
 };
+
+// Mobile view management
+let currentMobileView = 'map'; // 'map', 'graph', or 'feed'
+
+// Mobile view switching function
+window.showMobileView = function(view) {
+    // Only apply on mobile screens
+    if (window.innerWidth > 768) {
+        return;
+    }
+    
+    currentMobileView = view;
+    
+    // Update button states
+    document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Show/hide containers
+    const mapContainer = document.querySelector('.map-container');
+    const graphContainer = document.querySelector('.graph-container');
+    const logContainer = document.querySelector('.log-container');
+    
+    // Hide all containers first
+    mapContainer.style.display = 'none';
+    graphContainer.style.display = 'none';
+    logContainer.style.display = 'none';
+    
+    // Show the selected view and activate button
+    switch(view) {
+        case 'map':
+            mapContainer.style.display = 'block';
+            document.getElementById('mapNavBtn').classList.add('active');
+            break;
+        case 'graph':
+            graphContainer.style.display = 'block';
+            document.getElementById('graphNavBtn').classList.add('active');
+            // Trigger graph resize/fit after showing
+            setTimeout(() => {
+                if (window.fitGraphToScreen) {
+                    window.fitGraphToScreen();
+                }
+            }, 100);
+            break;
+        case 'feed':
+            logContainer.style.display = 'block';
+            document.getElementById('feedNavBtn').classList.add('active');
+            // Force expand the activity feed when shown on mobile
+            const container = document.querySelector('.container');
+            if (container && container.classList.contains('activity-collapsed')) {
+                toggleActivityFeed();
+            }
+            break;
+    }
+};
+
+// Initialize mobile view on window resize
+function handleMobileViewResize() {
+    if (window.innerWidth > 768) {
+        // Desktop mode - show all containers
+        document.querySelector('.map-container').style.display = 'block';
+        document.querySelector('.graph-container').style.display = 'block';
+        document.querySelector('.log-container').style.display = 'block';
+    } else {
+        // Mobile mode - show only current view
+        showMobileView(currentMobileView);
+    }
+}
+
+// Add resize listener
+window.addEventListener('resize', handleMobileViewResize);
+
+// Initialize mobile view on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set initial mobile view if on mobile
+    if (window.innerWidth <= 768) {
+        showMobileView('map');
+    }
+});
