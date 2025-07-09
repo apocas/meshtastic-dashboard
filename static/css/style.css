@@ -1042,6 +1042,7 @@ body.has-fullscreen .container > *:not(.fullscreen-mode) {
     .log-container {
         grid-row: 2;
         grid-column: 1;
+        z-index: 1; /* Ensure containers are below header */
     }
     
     /* Initially hide graph and feed on mobile (map is default) */
@@ -1055,9 +1056,10 @@ body.has-fullscreen .container > *:not(.fullscreen-mode) {
         flex-direction: row;
         flex-wrap: nowrap;
         justify-content: space-between;
+        align-items: center; /* Vertically align items */
         min-height: 60px;
         position: relative;
-        z-index: 100;
+        z-index: 1000; /* Increase header z-index */
     }
     
     .header-left {
@@ -1083,6 +1085,13 @@ body.has-fullscreen .container > *:not(.fullscreen-mode) {
     
     .menu-container {
         order: 2;
+        position: relative; /* This is required for the dropdown to position correctly */
+        z-index: 1001; /* Higher z-index for menu container */
+    }
+    
+    .menu-btn {
+        z-index: 1002; /* Ensure menu button is clickable */
+        position: relative;
     }
     
     .title {
@@ -1094,9 +1103,12 @@ body.has-fullscreen .container > *:not(.fullscreen-mode) {
     }
     
     .menu-dropdown {
-        right: 0;
+        right: 0; /* Re-align to the right */
         left: auto;
         transform: none;
+        z-index: 1003; /* Highest z-index for dropdown */
+        position: fixed; /* Use fixed positioning on mobile */
+        top: 70px; /* Position below header */
     }
 }
 
