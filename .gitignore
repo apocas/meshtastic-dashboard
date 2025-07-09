@@ -195,3 +195,4 @@ cython_debug/
 meshtastic.db
 
 .env*
+meshtastic.db-journal
